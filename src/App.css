@@ -1,0 +1,27 @@
+.app {
+  width: min(100% - 32px, 560px);
+  margin: 40px auto;
+}
+
+form {
+  display: flex;
+  gap: 8px;
+}
+
+input[type="text"] {
+  flex-grow: 1;
+}
+
+li {
+  margin-top: 12px;
+}
+
+label {
+  display: flex;
+  gap: 8px;
+}
+
+.completed {
+  text-decoration: line-through;
+  opacity: 0.5;
+}
