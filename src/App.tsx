@@ -6,10 +6,14 @@ import "./App.css";
 function App() {
   const [title, setTitle] = useState("");
   const [tasks, setTasks] = useState<Task[]>([]);
+  const [showCompleted, setShowCompleted] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [aiText, setAiText] = useState("");
   const [isAiLoading, setIsAiLoading] = useState(false);
+  const visibleTasks = showCompleted
+    ? tasks
+    : tasks.filter((task) => task.completed === false);
 
   useEffect(() => {
     const loadTasks = async () => {
@@ -120,28 +124,49 @@ function App() {
         </button>
       </form>
 
-      {error && <p>{error}</p>}
+      {error && <p role="alert">{error}</p>}
+
+      <div className="task-toolbar">
+        <button
+          type="button"
+          className="filter-button"
+          aria-pressed={showCompleted}
+          onClick={() => setShowCompleted((current) => !current)}
+        >
+          {showCompleted ? "Скрыть выполненные" : "Показать все"}
+        </button>
+      </div>
 
       {isLoading ? (
         <p>Загрузка...</p>
       ) : (
-        <ul>
-          {tasks.map((task) => (
-            <li key={task.id}>
-              <label>
-                <input
-                  type="checkbox"
-                  checked={task.completed}
-                  onChange={() => handleToggle(task.id)}
-                />
+        <>
+          {visibleTasks.length === 0 && !error && (
+            <p className="empty-state" role="status">
+              {showCompleted ? "Пока нет задач" : "Все задачи выполнены"}
+            </p>
+          )}
+          <ul className="task-list">
+            {visibleTasks.map((task) => (
+              <li
+                key={task.id}
+                className={task.completed ? "completed-task" : ""}
+              >
+                <label>
+                  <input
+                    type="checkbox"
+                    checked={task.completed}
+                    onChange={() => handleToggle(task.id)}
+                  />
 
-                <span className={task.completed ? "completed" : ""}>
-                  {task.title}
-                </span>
-              </label>
-            </li>
-          ))}
-        </ul>
+                  <span className={task.completed ? "completed" : ""}>
+                    {task.title}
+                  </span>
+                </label>
+              </li>
+            ))}
+          </ul>
+        </>
       )}
     </main>
   );
