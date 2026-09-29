@@ -169,6 +169,6 @@ app.use((request, response, next) => {
   response.sendFile(join(frontendDistPath, "index.html"));
 });
 
-app.listen(port, () => {
+app.listen(port, "0.0.0.0", () => {
   console.log(`Server started: http://localhost:${port}`);
 });

@@ -1,0 +1,15 @@
+**/node_modules
+**/dist
+**/dist-ssr
+**/*.tsbuildinfo
+**/.env
+**/.env.*
+**/*.local
+server/data
+.git
+.agents
+.codex
+.vscode
+.idea
+**/*.log
+coverage
