@@ -4,6 +4,11 @@ server/.env
 server/data/*.db
 server/data/*.db-shm
 server/data/*.db-wal
+server/data/
+**/*.db
+**/*.db-shm
+**/*.db-wal
+server/backups/
 
 # Logs
 logs

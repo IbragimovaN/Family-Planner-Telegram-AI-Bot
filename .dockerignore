@@ -6,6 +6,10 @@
 **/.env.*
 **/*.local
 server/data
+server/backups
+**/*.db
+**/*.db-wal
+**/*.db-shm
 .git
 .agents
 .codex

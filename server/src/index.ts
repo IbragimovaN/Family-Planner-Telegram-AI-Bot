@@ -53,7 +53,7 @@ app.get("/api/tasks", (_request, response) => {
     .prepare(
       `
       SELECT id, title, completed
-      FROM tasks
+      FROM prototype_tasks
       ORDER BY created_at ASC
     `,
     )
@@ -84,7 +84,7 @@ app.post("/api/tasks", (request, response) => {
   database
     .prepare(
       `
-      INSERT INTO tasks (id, title, completed)
+      INSERT INTO prototype_tasks (id, title, completed)
       VALUES (?, ?, ?)
     `,
     )
@@ -98,7 +98,7 @@ app.patch("/api/tasks/:id/toggle", (request, response) => {
     .prepare(
       `
       SELECT id, title, completed
-      FROM tasks
+      FROM prototype_tasks
       WHERE id = ?
     `,
     )
@@ -120,7 +120,7 @@ app.patch("/api/tasks/:id/toggle", (request, response) => {
   database
     .prepare(
       `
-      UPDATE tasks
+      UPDATE prototype_tasks
       SET completed = ?
       WHERE id = ?
     `,
