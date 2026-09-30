@@ -6,6 +6,7 @@
   "type": "module",
   "scripts": {
     "server-dev": "tsx watch src/index.ts",
+    "server-dev:auth": "node scripts/dev-auth.mjs",
     "build": "tsc",
     "start": "node dist/index.js",
     "typecheck": "tsc --noEmit",

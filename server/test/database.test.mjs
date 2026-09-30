@@ -49,16 +49,27 @@ test("empty schema contains all MVP tables; migration repeat preserves records",
   assertCurrentSchema(db);
 });
 
+test("auth migration preserves version-1 data without assigning old tasks to a user", (t) => {
+  const db = openDatabase(":memory:");
+  t.after(() => db.close());
+  migrate(db, [migrations[0]]);
+  db.exec("INSERT INTO prototype_tasks (id,title) VALUES ('old','Unassigned')");
+  const checksum = db.prepare("SELECT checksum FROM schema_migrations WHERE version=1").get().checksum;
+  assert.equal(migrate(db), migrations.length - 1);
+  assert.deepEqual(db.prepare("SELECT title,owner_user_id FROM prototype_tasks").get(), { title: "Unassigned", owner_user_id: null });
+  assert.equal(db.prepare("SELECT checksum FROM schema_migrations WHERE version=1").get().checksum, checksum);
+});
+
 test("pending schema cannot be used by application and failed migrations roll back", (t) => {
   const db = openDatabase(":memory:");
   t.after(() => db.close());
   assert.throws(() => assertCurrentSchema(db), /migrations required/);
-  const broken = [...migrations, { version: 2, name: "broken", sql: "CREATE TABLE partial(id TEXT); INSERT INTO missing VALUES (1);" }];
+  const broken = [...migrations, { version: migrations.length + 1, name: "broken", sql: "CREATE TABLE partial(id TEXT); INSERT INTO missing VALUES (1);" }];
   assert.throws(() => migrate(db, broken), /missing/);
   assert.deepEqual(db.prepare("SELECT name FROM sqlite_master WHERE type='table'").all(), []);
-  assert.equal(migrate(db), 1);
+  assert.equal(migrate(db), migrations.length);
   assert.throws(() => migrate(db, broken), /missing/);
-  assert.equal(db.prepare("SELECT count(*) AS count FROM schema_migrations").get().count, 1);
+  assert.equal(db.prepare("SELECT count(*) AS count FROM schema_migrations").get().count, migrations.length);
   assert.equal(db.prepare("SELECT 1 FROM sqlite_master WHERE name='partial'").get(), undefined);
 });
 

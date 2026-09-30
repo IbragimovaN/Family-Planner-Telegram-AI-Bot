@@ -3,7 +3,7 @@
 Команды выполняются из `family-planner-bot`. Нужны работающий Docker Engine
 с Linux-контейнерами и Docker Compose v2.
 
-1. Создайте на сервере `server/.env` с переменной `OPENAI_API_KEY`.
+1. Создайте на сервере `server/.env` с `TELEGRAM_BOT_TOKEN`, `APP_ORIGIN` (HTTPS URL без пути) и `DEV_AUTH_ENABLED=false`. `OPENAI_API_KEY` нужен только для AI-разбора.
    Файл уже исключён из Git, а `.dockerignore` исключает его из контекста сборки.
    Compose передаёт переменные при запуске; файл не попадает в образ.
 2. Соберите образ, подготовьте базу и запустите приложение. Первый переход на новую пустую БД:

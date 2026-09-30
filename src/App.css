@@ -3,6 +3,37 @@
   margin: 40px auto;
 }
 
+.auth-bar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 16px;
+  border-bottom: 1px solid var(--border);
+}
+
+.auth-bar button {
+  min-height: 44px;
+  padding: 8px 16px;
+  font: inherit;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  color: var(--text-h);
+  background: var(--bg);
+  cursor: pointer;
+}
+
+.auth-bar button:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 3px;
+}
+
+.auth-screen {
+  display: grid;
+  gap: 20px;
+}
+
 form {
   display: flex;
   gap: 8px;

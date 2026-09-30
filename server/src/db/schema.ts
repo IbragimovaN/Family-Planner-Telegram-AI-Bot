@@ -160,4 +160,13 @@ CREATE TABLE prototype_tasks (
 ) STRICT;
 CREATE INDEX prototype_tasks_created ON prototype_tasks(created_at);
 `,
+}, {
+  version: 2,
+  name: "authentication_and_prototype_ownership",
+  sql: `
+ALTER TABLE sessions ADD COLUMN auth_method TEXT NOT NULL DEFAULT 'telegram'
+  CHECK (auth_method IN ('telegram', 'dev'));
+ALTER TABLE prototype_tasks ADD COLUMN owner_user_id TEXT REFERENCES users(id);
+CREATE INDEX prototype_tasks_owner ON prototype_tasks(owner_user_id, created_at);
+`,
 }];
