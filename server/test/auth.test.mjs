@@ -102,6 +102,23 @@ test("logout and expiry invalidate sessions on the server", async (t) => {
   assert.equal((await request("/api/me", { cookie: second.cookie })).status, 401);
 });
 
+test("new Telegram account replaces an existing cookie identity", async t => {
+  const { request, login } = await fixture(t);
+  const first = await login({ id: 1, first_name: "First" });
+  const second = await login({ id: 2, first_name: "Second" }, first.cookie);
+  assert.equal((await request("/api/me", { cookie: first.cookie })).status, 401);
+  assert.equal((await (await request("/api/me", { cookie: second.cookie })).json()).user.firstName, "Second");
+});
+
+test("only explicitly trusted proxy addresses separate client login limits", async t => {
+  assert.throws(() => readAuthConfig({ TRUSTED_PROXY_IPS: "true" }), /explicit/);
+  for (const trusted of [false, true]) {
+    const { request } = await fixture(t, { TRUSTED_PROXY_IPS: trusted ? "127.0.0.1" : "" });
+    for (let i = 0; i < 20; i++) await request("/api/auth/telegram", { body: { initData: "invalid" }, headers: { "X-Forwarded-For": "203.0.113.1" } });
+    assert.equal((await request("/api/auth/telegram", { body: { initData: "invalid" }, headers: { "X-Forwarded-For": "203.0.113.2" } })).status, trusted ? 401 : 429);
+  }
+});
+
 test("mutations reject wrong origin and missing header without changing data", async (t) => {
   const { db, request, login } = await fixture(t);
   const { cookie } = await login();

@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef, useState, type FormEvent } from "react";
 import App from "./App";
+import WriteAccess from "./WriteAccess";
 import { apiRequest } from "./api/http";
 
 type Family = { id: string; name: string; timezone: string; role: "owner" | "member" };
@@ -34,6 +35,21 @@ export default function FamilyGate({ user, dev, onLogout, logoutBusy, authMessag
   const [invitation, setInvitation] = useState<NewInvitation | null>(null);
   const [joinText, setJoinText] = useState(initialInvitation);
   const [inviteScreen, setInviteScreen] = useState(() => Boolean(initialInvitation()));
+  const [preview, setPreview] = useState<{ token: string; name?: string; membership?: "none" | "same" | "other"; error?: string } | null>(null);
+  const [previewAttempt, setPreviewAttempt] = useState(0);
+  const tokenToPreview = invitationToken(joinText);
+  useEffect(() => {
+    if (!tokenToPreview) return;
+    const controller = new AbortController();
+    const timer = window.setTimeout(() => {
+      void apiRequest<{ name: string; membership: "none" | "same" | "other" }>("/api/family/invitation-preview", {
+        method: "POST", body: JSON.stringify({ token: tokenToPreview }), signal: controller.signal,
+      }).then(result => { if (!controller.signal.aborted) setPreview({ token: tokenToPreview, ...result }); })
+        .catch(error => { if (!controller.signal.aborted) setPreview({ token: tokenToPreview, error: error instanceof Error ? error.message : "Не удалось проверить приглашение." }); });
+    }, 250);
+    return () => { window.clearTimeout(timer); controller.abort(); };
+  }, [tokenToPreview, previewAttempt, family?.id]);
+  const checkedInvite = preview?.token === tokenToPreview ? preview : null;
   const [onboarding, setOnboarding] = useState<"create" | "join">(() => initialInvitation() ? "join" : "create");
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState(false);
@@ -144,6 +160,9 @@ export default function FamilyGate({ user, dev, onLogout, logoutBusy, authMessag
       {(!family || inviteScreen || view === "family") && <h1>{inviteScreen ? "Приглашение в семью" : family ? family.name : onboarding === "join" ? "Вас пригласили в семью" : "Всё начинается с семьи"}</h1>}
       {error && <p role="alert">{error}</p>}
       {notice && <p role="status">{notice}</p>}
+      {tokenToPreview && !checkedInvite && <p role="status">Проверяем приглашение…</p>}
+      {checkedInvite?.error && <><p role="alert">{checkedInvite.error}</p><button onClick={() => { setPreview(null); setPreviewAttempt(value => value + 1); }}>Проверить снова</button></>}
+      {checkedInvite?.name && <p>Приглашение в семью «{checkedInvite.name}»</p>}
       {error && <button type="button" disabled={busy} onClick={() => { setError(""); void refresh(); }}>Обновить данные</button>}
       {!family && onboarding === "create" && <>
         <p>Создайте общее пространство для вас и ваших близких.</p>
@@ -161,12 +180,12 @@ export default function FamilyGate({ user, dev, onLogout, logoutBusy, authMessag
         <label htmlFor="family-invite">Ссылка или код приглашения</label>
         <input id="family-invite" value={joinText} onChange={event => setJoinText(event.target.value)} required disabled={busy} autoComplete="off" />
         </>}
-        <button className="primary" disabled={busy}>{busy ? "Присоединяемся…" : "Вступить в семью"}</button>
+        <button className="primary" disabled={busy || !checkedInvite?.name || checkedInvite.membership !== "none"}>{busy ? "Присоединяемся…" : "Вступить в семью"}</button>
       </form>
       {!inviteScreen && <button className="text-button" disabled={busy} onClick={() => { setError(""); setOnboarding("create"); }}>Создать свою семью</button>}
       </>}
       {family && inviteScreen && <>
-        <p>Вы уже состоите в семье «{family.name}». Для вступления по приглашению нужен аккаунт без семьи.</p>
+        <p>{checkedInvite?.membership === "same" ? `Вы уже участник семьи «${family.name}».` : checkedInvite?.membership === "other" ? `Вы состоите в другой семье — «${family.name}». Вступление в несколько семей недоступно.` : `Ваша текущая семья — «${family.name}».`}</p>
         <button className="primary" onClick={() => { setInviteScreen(false); setJoinText(""); setView("home"); const url = new URL(window.location.href); url.searchParams.delete("invite"); url.searchParams.delete("tgWebAppStartParam"); window.history.replaceState(null, "", url); }}>Открыть свою семью</button>
       </>}
       {family && !inviteScreen && <>
@@ -205,7 +224,15 @@ export default function FamilyGate({ user, dev, onLogout, logoutBusy, authMessag
             {invitation && <div className="invitation-result">
               <label htmlFor="new-invite">{invitation.url ? "Ссылка приглашения" : "Код приглашения"}</label>
               <input id="new-invite" readOnly value={invitation.url || invitation.token} onFocus={event => event.target.select()} />
-              <button className="primary" type="button" onClick={async () => {
+              {!dev && invitation.url && <button className="primary" type="button" onClick={() => {
+                const shareUrl = `https://t.me/share/url?${new URLSearchParams({ url: invitation.url!, text: `Присоединяйтесь к семье «${family.name}» в Family Planner` })}`;
+                try {
+                  const app = window.Telegram?.WebApp;
+                  if (app?.openTelegramLink) app.openTelegramLink(shareUrl);
+                  else window.open(shareUrl, "_blank", "noopener,noreferrer");
+                } catch { setError("Не удалось открыть Telegram. Скопируйте ссылку вручную."); }
+              }}>Поделиться в Telegram</button>}
+              <button className={dev ? "primary" : ""} type="button" onClick={async () => {
                 try { await navigator.clipboard.writeText(invitation.url || invitation.token); setNotice("Приглашение скопировано."); }
                 catch { setError("Выделите и скопируйте приглашение из поля вручную."); }
               }}>Скопировать</button>
@@ -217,6 +244,7 @@ export default function FamilyGate({ user, dev, onLogout, logoutBusy, authMessag
             </li>)}</ul></details>}
             </section>
           </>}
+          {!dev && <WriteAccess />}
         </>}
       </>}
       {confirmation && <div ref={confirmationPanel} tabIndex={-1} role="alertdialog" aria-labelledby="confirm-title" className="family-confirm" onKeyDown={event => { if (event.key === "Escape" && !busy) setConfirmation(null); }}>

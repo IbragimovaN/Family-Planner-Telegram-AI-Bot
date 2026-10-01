@@ -21,6 +21,7 @@ type TaskRow = {
 export function createApp(database: Database.Database, config: AuthConfig) {
 const app = express();
 app.disable("x-powered-by");
+app.set("trust proxy", config.trustedProxies.length ? config.trustedProxies : false);
 
 const currentFilePath = fileURLToPath(import.meta.url);
 const currentDirectory = dirname(currentFilePath);

@@ -11,15 +11,18 @@ async function bootstrap(): Promise<State> {
   const { devLoginEnabled } = await apiRequest<{ devLoginEnabled: boolean }>("/api/auth/config", {}, false);
   const devAllowed = import.meta.env.DEV && devLoginEnabled;
   if (!initData && !devAllowed) return { status: "outside" };
+  // A new Telegram launch must authenticate its current account before reading a cookie profile.
+  if (initData) {
+    await apiRequest("/api/auth/telegram", { method: "POST", body: JSON.stringify({ initData }) }, false);
+    return { status: "ready", profile: await apiRequest<Profile>("/api/me", {}, false), devAllowed };
+  }
   try {
     const profile = await apiRequest<Profile>("/api/me", {}, false);
     return { status: "ready", profile, devAllowed };
   } catch (error) {
     if (!(error instanceof ApiError) || error.status !== 401) throw error;
   }
-  if (!initData) return { status: "outside", devAllowed };
-  await apiRequest("/api/auth/telegram", { method: "POST", body: JSON.stringify({ initData }) }, false);
-  return { status: "ready", profile: await apiRequest<Profile>("/api/me", {}, false), devAllowed };
+  return { status: "outside", devAllowed };
 }
 
 // StrictMode mounts effects twice in development; share only the in-flight bootstrap.

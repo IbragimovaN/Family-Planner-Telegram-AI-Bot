@@ -55,7 +55,7 @@ export function createAuth(db: Database.Database, config: AuthConfig) {
     next();
   };
 
-  // Bounded per-process limiter. X-Forwarded-For is not trusted.
+  // Bounded per-process limiter. Forwarded IPs are accepted only from configured proxies.
   const attempts = new Map<string, { count: number; until: number }>();
   const rateLimit: RequestHandler = (request, response, next) => {
     const now = Date.now();

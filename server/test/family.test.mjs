@@ -131,3 +131,23 @@ test("invitation rate limit bounds repeated creation", async t => {
   for (let i = 0; i < 19; i++) await f.invite(owner);
   assert.equal((await f.request(owner, "/api/family/invitations", "POST", {})).status, 429);
 });
+
+test("invitation preview reveals only name and membership, never joins, rejects expired links", async t => {
+  const f = await fixture(t);
+  const owner = await f.login(1), member = await f.login(2), outsider = await f.login(3);
+  await f.create(owner, "Target"); await f.create(outsider, "Other");
+  const invite = await f.invite(owner);
+  const preview = cookie => f.request(cookie, "/api/family/invitation-preview", "POST", { token: invite.token });
+  assert.equal((await preview(null)).status, 401);
+  for (const [cookie, membership] of [[owner, "same"], [member, "none"], [outsider, "other"]]) {
+    assert.deepEqual(await (await preview(cookie)).json(), { name: "Target", membership });
+  }
+  assert.deepEqual(await (await f.request(member, "/api/family")).json(), { family: null });
+  await f.request(member, "/api/family/join", "POST", { token: invite.token });
+  assert.deepEqual(await (await preview(member)).json(), { name: "Target", membership: "same" });
+  await f.request(owner, `/api/family/invitations/${invite.invitation.id}`, "DELETE", {});
+  assert.equal((await preview(member)).status, 410);
+  const expired = await f.invite(owner);
+  f.db.prepare("UPDATE invitations SET expires_at=0 WHERE id=?").run(expired.invitation.id);
+  assert.equal((await f.request(member, "/api/family/invitation-preview", "POST", { token: expired.token })).status, 410);
+});

@@ -55,6 +55,15 @@ export function createFamilyRouter(db: Database.Database, config: AuthConfig) {
   };
 
   router.get("/family", (_request, response) => response.json({ family: findFamily(db, sessionFrom(response).user.id) }));
+  router.post("/family/invitation-preview", limit, (request, response) => {
+    const { token } = parse(tokenSchema, request.body);
+    const target = db.prepare(`SELECT f.id,f.name FROM invitations i JOIN families f ON f.id=i.family_id
+      WHERE i.token_hash=? AND i.revoked_at IS NULL AND i.expires_at>?`)
+      .get(tokenHash(token), Math.floor(Date.now() / 1000)) as { id: string; name: string } | undefined;
+    if (!target) throw new FamilyError(410, "Приглашение недействительно или срок его действия истёк.");
+    const existing = findFamily(db, sessionFrom(response).user.id);
+    response.json({ name: target.name, membership: !existing ? "none" : existing.id === target.id ? "same" : "other" });
+  });
   router.post("/families", limit, atomic((request, response) => {
     const body = parse(createSchema, request.body);
     const userId = sessionFrom(response).user.id;
