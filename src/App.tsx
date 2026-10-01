@@ -98,21 +98,24 @@ function App() {
 
   return (
     <main className="app">
-      <h1>Family Planner</h1>
+      <h2>Мои дела</h2>
 
       <form onSubmit={handleSubmit}>
         <input
           type="text"
+          aria-label="Новая задача"
           value={title}
           onChange={(event) => setTitle(event.target.value)}
           placeholder="Введите задачу"
         />
 
-        <button type="submit">Добавить</button>
+        <button className="primary" type="submit">Добавить</button>
       </form>
+      <details className="settings-panel"><summary>Добавить несколько дел с AI</summary>
       <form onSubmit={handleAiSubmit}>
         <input
           type="text"
+          aria-label="Описание дел для AI"
           value={aiText}
           onChange={(event) => setAiText(event.target.value)}
           placeholder="Например: купить молоко и позвонить врачу"
@@ -123,6 +126,7 @@ function App() {
           {isAiLoading ? "Обрабатываю..." : "Добавить с AI"}
         </button>
       </form>
+      </details>
 
       {error && <p role="alert">{error}</p>}
 

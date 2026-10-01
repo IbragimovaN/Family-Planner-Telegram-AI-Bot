@@ -31,6 +31,7 @@ export default function FamilyGate() {
   const [invitations, setInvitations] = useState<Invitation[]>([]);
   const [invitation, setInvitation] = useState<NewInvitation | null>(null);
   const [joinText, setJoinText] = useState(initialInvitation);
+  const [onboarding, setOnboarding] = useState<"create" | "join">(() => initialInvitation() ? "join" : "create");
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
@@ -40,6 +41,15 @@ export default function FamilyGate() {
   const sequence = useRef({ value: 0 });
   const [clock, setClock] = useState(() => Date.now());
   const inFlight = useRef(false);
+  const confirmationPanel = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (!confirmation) return;
+    const previous = document.activeElement;
+    confirmationPanel.current?.focus();
+    confirmationPanel.current?.scrollIntoView({ behavior: "smooth", block: "center" });
+    return () => { if (previous instanceof HTMLElement && previous.isConnected) previous.focus(); };
+  }, [confirmation]);
 
   const refresh = useCallback(async () => {
     const request = ++sequence.current.value;
@@ -119,70 +129,83 @@ export default function FamilyGate() {
   if (loading) return <main className="app"><p role="status">Загружаем семью…</p></main>;
   return <>
     <section className="app family-screen" aria-label="Семья">
-      <h1>{family ? family.name : "Ваша семья"}</h1>
+      <p className="eyebrow">Family Planner</p>
+      <h1>{family ? family.name : onboarding === "join" ? "Вас пригласили в семью" : "Всё начинается с семьи"}</h1>
       {error && <p role="alert">{error}</p>}
       {notice && <p role="status">{notice}</p>}
       {error && <button type="button" disabled={busy} onClick={() => { setError(""); void refresh(); }}>Обновить данные</button>}
-      {!family && <>
-        <p>Создайте семью или присоединитесь к близким по приглашению.</p>
+      {!family && onboarding === "create" && <>
+        <p>Создайте общее пространство для вас и ваших близких.</p>
         <form onSubmit={create}>
           <label htmlFor="family-name">Название семьи</label>
           <input id="family-name" name="name" maxLength={100} required placeholder="Например, Наша семья" disabled={busy} />
-          <button disabled={busy}>Создать семью</button>
+          <button className="primary" disabled={busy}>{busy ? "Создаём…" : "Создать семью"}</button>
         </form>
+        <button className="text-button" disabled={busy} onClick={() => { setError(""); setOnboarding("join"); }}>У меня есть приглашение</button>
       </>}
-      {(!family || joinText) && <form onSubmit={join}>
+      {!family && onboarding === "join" && <>
+        <p>Присоединитесь, чтобы планировать дела вместе с близкими.</p>
+        <form onSubmit={join}>
+        {!initialInvitation() && <>
         <label htmlFor="family-invite">Ссылка или код приглашения</label>
         <input id="family-invite" value={joinText} onChange={event => setJoinText(event.target.value)} required disabled={busy} autoComplete="off" />
-        <button disabled={busy}>Вступить по приглашению</button>
-      </form>}
+        </>}
+        <button className="primary" disabled={busy}>{busy ? "Присоединяемся…" : "Вступить в семью"}</button>
+      </form>
+      <button className="text-button" disabled={busy} onClick={() => { setError(""); setOnboarding("create"); }}>Создать свою семью</button>
+      </>}
       {family && <>
-        <div className="family-actions">
+        {joinText && <p className="info-message">Вы уже состоите в семье «{family.name}». Присоединиться к другой семье сейчас нельзя.</p>}
+        <nav className="family-actions" aria-label="Разделы приложения">
           <button type="button" aria-pressed={view === "family"} onClick={() => setView("family")}>Участники и настройки</button>
           <button type="button" aria-pressed={view === "tasks"} onClick={() => setView("tasks")}>Мои дела</button>
-        </div>
+        </nav>
         {view === "family" && <>
-          <p>Ваша роль: {family.role === "owner" ? "владелец" : "участник"}. Часовой пояс: {family.timezone}. Начало недели — понедельник.</p>
+          <p className="muted">{family.role === "owner" ? "Вы управляете этой семьёй" : "Вы участник этой семьи"}</p>
           <h2>Участники семьи</h2>
           <ul className="family-list">{members.map(member => <li key={member.id}>
-            <span>{member.firstName} {member.lastName || ""} · {member.role === "owner" ? "Владелец" : "Участник"}</span>
-            {family.role === "owner" && member.role !== "owner" && <button type="button" disabled={busy} onClick={() => setConfirmation({ kind: "member", id: member.id, name: member.firstName })}>Удалить участника</button>}
+            <span><strong>{member.firstName} {member.lastName || ""}</strong><small>{member.role === "owner" ? "Владелец" : "Участник"}</small></span>
+            {family.role === "owner" && member.role !== "owner" && <details><summary>Управление участником</summary><button className="danger" type="button" disabled={busy} onClick={() => setConfirmation({ kind: "member", id: member.id, name: member.firstName })}>Удалить участника</button></details>}
           </li>)}</ul>
           {family.role === "owner" && <>
-            <h2>Настройки семьи</h2>
+            <details className="settings-panel"><summary>Настройки семьи</summary>
             <form key={`${family.id}:${family.name}:${family.timezone}`} onSubmit={save}>
               <label htmlFor="settings-name">Название</label>
               <input id="settings-name" name="name" defaultValue={family.name} maxLength={100} required disabled={busy} />
               <label htmlFor="settings-timezone">Часовой пояс</label>
               <input id="settings-timezone" name="timezone" defaultValue={family.timezone} list="timezones" required disabled={busy} />
               <datalist id="timezones">{["Europe/Moscow", "Europe/Kaliningrad", "Europe/Samara", "Asia/Yekaterinburg", "Asia/Novosibirsk", "Asia/Vladivostok", "UTC"].map(zone => <option key={zone} value={zone} />)}</datalist>
-              <button disabled={busy}>Сохранить настройки</button>
+              <p className="muted">Неделя начинается в понедельник.</p>
+              <button className="primary" disabled={busy}>Сохранить настройки</button>
             </form>
+            </details>
+            <section className="invite-panel">
             <h2>Приглашения</h2>
             <p>Ссылка действует 7 дней и подходит для нескольких человек.</p>
-            <button type="button" disabled={busy} onClick={() => void action(async () => {
+            <button className={invitation ? "" : "primary"} type="button" disabled={busy} onClick={() => void action(async () => {
               setInvitation(await apiRequest<NewInvitation>("/api/family/invitations", { method: "POST", body: "{}" }));
             })}>Создать приглашение</button>
             {invitation && <div className="invitation-result">
               <label htmlFor="new-invite">{invitation.url ? "Ссылка приглашения" : "Код приглашения"}</label>
               <input id="new-invite" readOnly value={invitation.url || invitation.token} onFocus={event => event.target.select()} />
-              <button type="button" onClick={async () => {
+              <button className="primary" type="button" onClick={async () => {
                 try { await navigator.clipboard.writeText(invitation.url || invitation.token); setNotice("Приглашение скопировано."); }
                 catch { setError("Выделите и скопируйте приглашение из поля вручную."); }
               }}>Скопировать</button>
               <p>Сохраните ссылку сейчас: после обновления страницы она больше не отображается.</p>
             </div>}
-            <ul className="family-list">{invitations.map(link => <li key={link.id}>
+            {invitations.length > 0 && <details><summary>Управление ссылками · {invitations.length}</summary><ul className="family-list">{invitations.map(link => <li key={link.id}>
               <span>До {new Date(link.expiresAt * 1000).toLocaleString("ru-RU", { timeZone: family.timezone })} · {link.revokedAt ? "Отозвано" : link.expiresAt * 1000 <= clock ? "Истекло" : "Действует"}</span>
-              {!link.revokedAt && link.expiresAt * 1000 > clock && <button type="button" disabled={busy} onClick={() => setConfirmation({ kind: "invitation", id: link.id, name: "приглашение" })}>Отозвать</button>}
-            </li>)}</ul>
+              {!link.revokedAt && link.expiresAt * 1000 > clock && <button className="danger" type="button" disabled={busy} onClick={() => setConfirmation({ kind: "invitation", id: link.id, name: "приглашение" })}>Отозвать</button>}
+            </li>)}</ul></details>}
+            </section>
           </>}
         </>}
       </>}
-      {confirmation && <div role="alertdialog" aria-labelledby="confirm-title" className="family-confirm">
+      {confirmation && <div ref={confirmationPanel} tabIndex={-1} role="alertdialog" aria-labelledby="confirm-title" className="family-confirm" onKeyDown={event => { if (event.key === "Escape" && !busy) setConfirmation(null); }}>
         <h2 id="confirm-title">{confirmation.kind === "member" ? `Удалить участника «${confirmation.name}»?` : "Отозвать приглашение?"}</h2>
         <p>{confirmation.kind === "member" ? "Участник потеряет доступ к семье. По действующей ссылке он сможет вступить снова." : "По этой ссылке больше нельзя будет вступить в семью."}</p>
-        <button type="button" disabled={busy} onClick={() => void confirm()}>Подтвердить</button>
+        <button className="danger" type="button" disabled={busy} onClick={() => void confirm()}>{confirmation.kind === "member" ? "Удалить участника" : "Отозвать приглашение"}</button>
         <button type="button" disabled={busy} onClick={() => setConfirmation(null)}>Отмена</button>
       </div>}
     </section>

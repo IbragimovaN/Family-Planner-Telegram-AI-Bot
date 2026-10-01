@@ -73,8 +73,8 @@ export default function AuthGate() {
   if (state.status === "ready" && state.profile) {
     return <>
       <header className="auth-bar">
-        <p>Вы вошли как <strong>{state.profile.user.firstName}</strong>{state.profile.authMethod === "dev" && " · Тестовый вход"}</p>
-        <button type="button" onClick={logout} disabled={busy}>{busy ? "Выходим…" : "Выйти"}</button>
+        <p><strong>{state.profile.user.firstName}</strong>{state.profile.authMethod === "dev" && <small>Тестовый профиль</small>}</p>
+        <details className="account-menu"><summary>Аккаунт</summary><button type="button" onClick={logout} disabled={busy}>{busy ? "Выходим…" : "Выйти из аккаунта"}</button></details>
         {state.message && <p role="alert">{state.message}</p>}
       </header>
       <FamilyGate key={state.profile.user.id} />
@@ -87,7 +87,7 @@ export default function AuthGate() {
       <p>{state.message || "В Telegram откройте чат с ботом и нажмите кнопку приложения."}</p>
       {state.devAllowed && import.meta.env.DEV && <p>Локальный режим разработки</p>}
       {(state.devAllowed || state.status === "error" || state.status === "signedOut") &&
-        <button type="button" onClick={() => void login()} disabled={busy}>{busy ? "Входим…" : state.devAllowed ? "Войти как тестовый пользователь" : "Повторить вход"}</button>}
+        <button className="primary" type="button" onClick={() => void login()} disabled={busy}>{busy ? "Входим…" : state.devAllowed ? "Войти как тестовый пользователь" : "Повторить вход"}</button>}
       {state.devAllowed && import.meta.env.DEV && <button type="button" disabled={busy} onClick={() => void login("second")}>Войти как второй участник</button>}
     </>}
   </main>;
