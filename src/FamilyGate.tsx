@@ -25,18 +25,21 @@ function initialInvitation() {
   return invitationToken(params.get("invite") || params.get("tgWebAppStartParam") || init.get("start_param") || "");
 }
 
-export default function FamilyGate() {
+type Props = { user: { id: string; firstName: string; lastName: string | null }; dev: boolean; onLogout: () => Promise<void>; logoutBusy: boolean; authMessage?: string };
+
+export default function FamilyGate({ user, dev, onLogout, logoutBusy, authMessage }: Props) {
   const [family, setFamily] = useState<Family | null>(null);
   const [members, setMembers] = useState<Member[]>([]);
   const [invitations, setInvitations] = useState<Invitation[]>([]);
   const [invitation, setInvitation] = useState<NewInvitation | null>(null);
   const [joinText, setJoinText] = useState(initialInvitation);
+  const [inviteScreen, setInviteScreen] = useState(() => Boolean(initialInvitation()));
   const [onboarding, setOnboarding] = useState<"create" | "join">(() => initialInvitation() ? "join" : "create");
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
   const [notice, setNotice] = useState("");
-  const [view, setView] = useState<"family" | "tasks">("family");
+  const [view, setView] = useState<"home" | "family" | "tasks">("home");
   const [confirmation, setConfirmation] = useState<{ kind: "member" | "invitation"; id: string; name: string } | null>(null);
   const sequence = useRef({ value: 0 });
   const [clock, setClock] = useState(() => Date.now());
@@ -101,6 +104,7 @@ export default function FamilyGate() {
     if (!token) { setError("Вставьте ссылку или код приглашения целиком."); return; }
     void action(async () => {
       await apiRequest("/api/family/join", { method: "POST", body: JSON.stringify({ token }) });
+      setInviteScreen(false); setView("home");
       setJoinText(""); setNotice("Вы присоединились к семье.");
       const url = new URL(window.location.href);
       url.searchParams.delete("invite"); url.searchParams.delete("tgWebAppStartParam");
@@ -128,9 +132,16 @@ export default function FamilyGate() {
 
   if (loading) return <main className="app"><p role="status">Загружаем семью…</p></main>;
   return <>
+    <header className="auth-bar">
+      <div><strong>{user.firstName} {user.lastName || ""}</strong>
+        {family && !inviteScreen ? <details className="account-menu family-menu"><summary>{family.name}</summary><button type="button" onClick={event => { event.currentTarget.closest("details")?.removeAttribute("open"); setView(view === "family" ? "home" : "family"); setConfirmation(null); }}>{view === "family" ? "На главную" : family.role === "owner" ? "Настройки семьи" : "Участники семьи"}</button></details> : dev && <small>Тестовый профиль</small>}
+      </div>
+      <details className="account-menu"><summary>Аккаунт</summary><button type="button" onClick={onLogout} disabled={logoutBusy}>{logoutBusy ? "Выходим…" : "Выйти из аккаунта"}</button></details>
+      {authMessage && <p role="alert">{authMessage}</p>}
+    </header>
     <section className="app family-screen" aria-label="Семья">
       <p className="eyebrow">Family Planner</p>
-      <h1>{family ? family.name : onboarding === "join" ? "Вас пригласили в семью" : "Всё начинается с семьи"}</h1>
+      {(!family || inviteScreen || view === "family") && <h1>{inviteScreen ? "Приглашение в семью" : family ? family.name : onboarding === "join" ? "Вас пригласили в семью" : "Всё начинается с семьи"}</h1>}
       {error && <p role="alert">{error}</p>}
       {notice && <p role="status">{notice}</p>}
       {error && <button type="button" disabled={busy} onClick={() => { setError(""); void refresh(); }}>Обновить данные</button>}
@@ -152,16 +163,22 @@ export default function FamilyGate() {
         </>}
         <button className="primary" disabled={busy}>{busy ? "Присоединяемся…" : "Вступить в семью"}</button>
       </form>
-      <button className="text-button" disabled={busy} onClick={() => { setError(""); setOnboarding("create"); }}>Создать свою семью</button>
+      {!inviteScreen && <button className="text-button" disabled={busy} onClick={() => { setError(""); setOnboarding("create"); }}>Создать свою семью</button>}
       </>}
-      {family && <>
-        {joinText && <p className="info-message">Вы уже состоите в семье «{family.name}». Присоединиться к другой семье сейчас нельзя.</p>}
-        <nav className="family-actions" aria-label="Разделы приложения">
-          <button type="button" aria-pressed={view === "family"} onClick={() => setView("family")}>Участники и настройки</button>
-          <button type="button" aria-pressed={view === "tasks"} onClick={() => setView("tasks")}>Мои дела</button>
-        </nav>
+      {family && inviteScreen && <>
+        <p>Вы уже состоите в семье «{family.name}». Для вступления по приглашению нужен аккаунт без семьи.</p>
+        <button className="primary" onClick={() => { setInviteScreen(false); setJoinText(""); setView("home"); const url = new URL(window.location.href); url.searchParams.delete("invite"); url.searchParams.delete("tgWebAppStartParam"); window.history.replaceState(null, "", url); }}>Открыть свою семью</button>
+      </>}
+      {family && !inviteScreen && <>
+        {view === "home" && <nav className="home-sections" aria-label="Разделы приложения">
+          <button onClick={() => setView("tasks")}>Дела</button>
+          <button disabled>Список покупок<small>Скоро</small></button>
+          <button disabled>Вишлисты<small>Скоро</small></button>
+        </nav>}
+        {view === "tasks" && <><button className="text-button back-button" onClick={() => setView("home")}>← На главную</button><App /></>}
         {view === "family" && <>
-          <p className="muted">{family.role === "owner" ? "Вы управляете этой семьёй" : "Вы участник этой семьи"}</p>
+          <div className="profile-card"><div><strong>{user.firstName} {user.lastName || ""}</strong><p className="muted">{family.role === "owner" ? "Вы управляете этой семьёй" : "Вы участник этой семьи"}</p><small>{family.role === "owner" ? "Владелец" : "Участник"}</small></div><img src="/svg-avatar.svg" alt="" width="72" height="72" /></div>
+          <div className="section-caption">{family.role === "owner" ? "Участники и настройки" : "Участники семьи"}</div>
           <h2>Участники семьи</h2>
           <ul className="family-list">{members.map(member => <li key={member.id}>
             <span><strong>{member.firstName} {member.lastName || ""}</strong><small>{member.role === "owner" ? "Владелец" : "Участник"}</small></span>
@@ -209,6 +226,5 @@ export default function FamilyGate() {
         <button type="button" disabled={busy} onClick={() => setConfirmation(null)}>Отмена</button>
       </div>}
     </section>
-    {family && view === "tasks" && <App />}
   </>;
 }

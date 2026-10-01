@@ -71,14 +71,7 @@ export default function AuthGate() {
   }
 
   if (state.status === "ready" && state.profile) {
-    return <>
-      <header className="auth-bar">
-        <p><strong>{state.profile.user.firstName}</strong>{state.profile.authMethod === "dev" && <small>Тестовый профиль</small>}</p>
-        <details className="account-menu"><summary>Аккаунт</summary><button type="button" onClick={logout} disabled={busy}>{busy ? "Выходим…" : "Выйти из аккаунта"}</button></details>
-        {state.message && <p role="alert">{state.message}</p>}
-      </header>
-      <FamilyGate key={state.profile.user.id} />
-    </>;
+    return <FamilyGate key={state.profile.user.id} user={state.profile.user} dev={state.profile.authMethod === "dev"} onLogout={logout} logoutBusy={busy} authMessage={state.message} />;
   }
   return <main className="app auth-screen">
     <h1>Family Planner</h1>

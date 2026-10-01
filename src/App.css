@@ -198,3 +198,26 @@ label {
 .account-menu summary { font-weight: 400; color: var(--text); }
 .account-menu button { position: absolute; right: 0; top: 100%; z-index: 2; width: 190px; box-shadow: 0 6px 24px #00000018; }
 @media (max-width: 480px) { .family-screen, .auth-screen { padding: 20px; border-radius: 16px; } }
+/* Main and owner screens from the supplied mockups. */
+.app, .auth-bar { width: min(100% - 32px, 630px); }
+.auth-bar { max-width: 630px; min-height: 86px; align-items: flex-start; padding-top: 24px; }
+.auth-bar > div { min-width: 0; max-width: calc(100% - 90px); overflow-wrap: anywhere; }
+.family-screen { padding: 32px; gap: 20px; margin-top: 44px; }
+.family-menu summary { min-height: 24px; padding: 0; }
+.family-menu button { left: 0; right: auto; }
+.home-sections { display: grid; gap: 4px; background: var(--social-bg); border-radius: 18px; padding: 8px; }
+.home-sections button { min-height: 164px; border: none; border-radius: 14px; color: var(--accent); font-size: 14px; font-weight: 650; }
+.home-sections button:disabled { opacity: 1; }
+.home-sections small { margin-top: 8px; }
+.profile-card { display: flex; align-items: center; justify-content: space-between; gap: 16px; border: 1px solid var(--border); border-radius: 14px; padding: 20px 12px; }
+.profile-card strong { color: var(--text-h); font-size: 18px; }
+.profile-card img { flex-shrink: 0; }
+.section-caption { text-align: center; color: var(--accent); font-weight: 650; font-size: 14px; padding: 16px; border: 6px solid var(--social-bg); border-radius: 16px; }
+.family-screen > .app { width: 100%; margin: 0; }
+.back-button { justify-self: start; }
+@media (prefers-color-scheme: dark) { .profile-card img { filter: invert(1); } }
+@media (max-width: 480px) {
+  .family-screen { padding: 20px; margin-top: 24px; }
+  .home-sections button { min-height: 132px; }
+  .profile-card img { width: 52px; height: 52px; }
+}
