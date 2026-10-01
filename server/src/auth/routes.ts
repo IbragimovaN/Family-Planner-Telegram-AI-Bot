@@ -71,10 +71,10 @@ export function createAuth(db: Database.Database, config: AuthConfig) {
     next();
   };
 
-  function login(request: Request, response: Response, user: TelegramUser, method: "telegram" | "dev") {
+  function login(request: Request, response: Response, user: TelegramUser, method: "telegram" | "dev", devProfile = "local") {
     const now = Math.floor(Date.now() / 1000);
     const token = randomBytes(32).toString("hex");
-    const telegramId = method === "dev" ? "dev:local" : String(user.id);
+    const telegramId = method === "dev" ? `dev:${devProfile}` : String(user.id);
     const currentToken = tokenFrom(request);
     db.transaction(() => {
       db.prepare(`INSERT INTO users (id, telegram_id, first_name, last_name, username, photo_url)
@@ -119,11 +119,12 @@ export function createAuth(db: Database.Database, config: AuthConfig) {
       response.status(404).json({ message: "Не найдено" });
       return;
     }
-    if (!z.object({}).strict().safeParse(request.body).success) {
+    const body = z.object({ profile: z.enum(["local", "second"]).default("local") }).strict().safeParse(request.body);
+    if (!body.success) {
       response.status(400).json({ message: "Некорректный запрос" });
       return;
     }
-    login(request, response, { id: 1, first_name: "Тестовый пользователь" }, "dev");
+    login(request, response, { id: 1, first_name: body.data.profile === "local" ? "Тестовый пользователь" : "Второй участник" }, "dev", body.data.profile);
   });
   router.post("/logout", requireSession, (request, response) => {
     db.prepare("DELETE FROM sessions WHERE id=?").run(sessionFrom(response).sessionId);

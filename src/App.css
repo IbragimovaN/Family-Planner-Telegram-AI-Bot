@@ -34,6 +34,15 @@
   gap: 20px;
 }
 
+.family-screen { display: grid; gap: 16px; }
+.family-screen form { display: grid; gap: 8px; }
+.family-screen label { display: block; padding: 0; }
+.family-screen input { min-width: 0; width: 100%; min-height: 44px; box-sizing: border-box; padding: 10px; font: inherit; }
+.family-actions { display: flex; flex-wrap: wrap; gap: 8px; }
+.family-list { display: grid; gap: 12px; list-style: none; padding: 0; margin: 0; }
+.family-list li { display: grid; gap: 8px; padding: 12px; overflow-wrap: anywhere; }
+.invitation-result, .family-confirm { display: grid; gap: 12px; padding: 16px; border: 1px solid var(--accent); border-radius: 12px; }
+
 form {
   display: flex;
   gap: 8px;

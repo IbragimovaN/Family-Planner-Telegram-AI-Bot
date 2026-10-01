@@ -13,7 +13,7 @@ services:
       DATABASE_PATH: /app/server/data/family-planner-v2.db
       DATABASE_BACKUP_DIR: /app/server/data/backups
     ports:
-      - "3000:3000"
+      - "127.0.0.1:3000:3000"
     volumes:
       - server-data:/app/server/data
     healthcheck:

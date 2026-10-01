@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import App from "./App";
+import FamilyGate from "./FamilyGate";
 import { ApiError, apiRequest } from "./api/http";
 
 type Profile = { user: { id: string; firstName: string; lastName: string | null; username: string | null; photoUrl: string | null }; authMethod: "telegram" | "dev" };
@@ -40,7 +40,7 @@ export default function AuthGate() {
     return () => { active = false; window.removeEventListener("session-expired", expired); };
   }, []);
 
-  async function login() {
+  async function login(devProfile = "local") {
     if (busy) return;
     setBusy(true);
     try {
@@ -48,7 +48,7 @@ export default function AuthGate() {
       if (initData) {
         await apiRequest("/api/auth/telegram", { method: "POST", body: JSON.stringify({ initData }) }, false);
       } else if (import.meta.env.DEV && state.devAllowed) {
-        await apiRequest("/api/auth/dev", { method: "POST", body: "{}" }, false);
+        await apiRequest("/api/auth/dev", { method: "POST", body: JSON.stringify({ profile: devProfile }) }, false);
       } else {
         setState(await bootstrap());
         return;
@@ -77,7 +77,7 @@ export default function AuthGate() {
         <button type="button" onClick={logout} disabled={busy}>{busy ? "Выходим…" : "Выйти"}</button>
         {state.message && <p role="alert">{state.message}</p>}
       </header>
-      <App key={state.profile.user.id} />
+      <FamilyGate key={state.profile.user.id} />
     </>;
   }
   return <main className="app auth-screen">
@@ -87,7 +87,8 @@ export default function AuthGate() {
       <p>{state.message || "В Telegram откройте чат с ботом и нажмите кнопку приложения."}</p>
       {state.devAllowed && import.meta.env.DEV && <p>Локальный режим разработки</p>}
       {(state.devAllowed || state.status === "error" || state.status === "signedOut") &&
-        <button type="button" onClick={login} disabled={busy}>{busy ? "Входим…" : state.devAllowed ? "Войти как тестовый пользователь" : "Повторить вход"}</button>}
+        <button type="button" onClick={() => void login()} disabled={busy}>{busy ? "Входим…" : state.devAllowed ? "Войти как тестовый пользователь" : "Повторить вход"}</button>}
+      {state.devAllowed && import.meta.env.DEV && <button type="button" disabled={busy} onClick={() => void login("second")}>Войти как второй участник</button>}
     </>}
   </main>;
 }

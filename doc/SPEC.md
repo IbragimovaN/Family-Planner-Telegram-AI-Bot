@@ -393,6 +393,7 @@ Family Planner — мобильное SPA-приложение, которое �
 - `PATCH /api/family`;
 - `GET /api/family/members`;
 - `DELETE /api/family/members/:userId`;
+- `GET /api/family/invitations`;
 - `POST /api/family/invitations`;
 - `DELETE /api/family/invitations/:id`;
 - `POST /api/family/join`.

@@ -2,6 +2,7 @@ import express, { type ErrorRequestHandler } from "express";
 import type Database from "better-sqlite3";
 import { createAuth, sessionFrom } from "./auth/routes.js";
 import type { AuthConfig } from "./auth/config.js";
+import { createFamilyRouter, findFamily, FamilyError } from "./family.js";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 
@@ -56,8 +57,9 @@ app.get("/api/me", (_request, response) => {
   response.json({ user: {
     id: user.id, firstName: user.first_name, lastName: user.last_name,
     username: user.username, photoUrl: user.photo_url,
-  }, authMethod: method });
+  }, authMethod: method, family: findFamily(database, user.id) });
 });
+app.use("/api", createFamilyRouter(database, config));
 
 app.get("/api/tasks", (_request, response) => {
   const rows = database
@@ -188,6 +190,10 @@ app.use((request, response, next) => {
 
 const errorHandler: ErrorRequestHandler = (error: unknown, _request, response, _next) => {
   void _next;
+  if (error instanceof FamilyError) {
+    response.status(error.status).json({ message: error.message });
+    return;
+  }
   const status = typeof error === "object" && error !== null && "status" in error ? error.status : undefined;
   if (status === 400 || status === 413) {
     response.status(status).json({ message: "Некорректный или слишком большой запрос." });

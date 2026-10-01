@@ -3,6 +3,7 @@ export type AuthConfig = {
   devEnabled: boolean;
   origin: string;
   botToken?: string;
+  botUsername?: string;
   sessionSeconds: number;
   initDataSeconds: number;
 };
@@ -23,9 +24,11 @@ export function readAuthConfig(env: NodeJS.ProcessEnv = process.env): AuthConfig
       (url.protocol !== "https:" && (production || !local)) || (devEnabled && !local)) {
     throw new Error("APP_ORIGIN must be an HTTPS origin, or a local development origin without a path.");
   }
+  const botUsername = env.TELEGRAM_BOT_USERNAME?.trim().replace(/^@/, "") || undefined;
+  if (botUsername && !/^[A-Za-z0-9_]{5,32}$/.test(botUsername)) throw new Error("Invalid TELEGRAM_BOT_USERNAME.");
   return {
     production, devEnabled, origin: url.origin,
-    botToken: env.TELEGRAM_BOT_TOKEN?.trim() || undefined,
+    botToken: env.TELEGRAM_BOT_TOKEN?.trim() || undefined, botUsername,
     sessionSeconds: 7 * 24 * 60 * 60,
     initDataSeconds: 5 * 60,
   };
