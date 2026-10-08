@@ -2,6 +2,8 @@ import { useCallback, useEffect, useRef, useState, type FormEvent } from "react"
 import App from "./App";
 import WriteAccess from "./WriteAccess";
 import { apiRequest } from "./api/http";
+import { navigate, useNavigation, useTelegramBack } from "./navigation";
+import { ConfirmDialog, Loading } from "./components/States";
 
 type Family = { id: string; name: string; timezone: string; role: "owner" | "member" };
 type Member = { id: string; firstName: string; lastName: string | null; role: "owner" | "member" };
@@ -26,7 +28,7 @@ function initialInvitation() {
   return invitationToken(params.get("invite") || params.get("tgWebAppStartParam") || init.get("start_param") || "");
 }
 
-type Props = { user: { id: string; firstName: string; lastName: string | null }; dev: boolean; onLogout: () => Promise<void>; logoutBusy: boolean; authMessage?: string };
+type Props = { user: { id: string; firstName: string; lastName: string | null; photoUrl?: string | null }; dev: boolean; onLogout: () => Promise<void>; logoutBusy: boolean; authMessage?: string };
 
 export default function FamilyGate({ user, dev, onLogout, logoutBusy, authMessage }: Props) {
   const [family, setFamily] = useState<Family | null>(null);
@@ -55,20 +57,25 @@ export default function FamilyGate({ user, dev, onLogout, logoutBusy, authMessag
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
   const [notice, setNotice] = useState("");
-  const [view, setView] = useState<"home" | "family" | "tasks">("home");
+  const { route: view, back } = useNavigation();
+  const setView = navigate;
   const [confirmation, setConfirmation] = useState<{ kind: "member" | "invitation"; id: string; name: string } | null>(null);
   const sequence = useRef({ value: 0 });
   const [clock, setClock] = useState(() => Date.now());
   const inFlight = useRef(false);
-  const confirmationPanel = useRef<HTMLDivElement>(null);
-
-  useEffect(() => {
-    if (!confirmation) return;
-    const previous = document.activeElement;
-    confirmationPanel.current?.focus();
-    confirmationPanel.current?.scrollIntoView({ behavior: "smooth", block: "center" });
-    return () => { if (previous instanceof HTMLElement && previous.isConnected) previous.focus(); };
-  }, [confirmation]);
+  const goBack = useCallback(() => {
+    if (busy) return;
+    if (confirmation) { setConfirmation(null); return; }
+    if (inviteScreen) {
+      setInviteScreen(false); setJoinText(""); setOnboarding("create");
+      const url = new URL(window.location.href);
+      url.searchParams.delete("invite"); url.searchParams.delete("tgWebAppStartParam");
+      window.history.replaceState(null, "", url);
+      navigate("home", true);
+    } else if (!family) setOnboarding("create");
+    else back();
+  }, [busy, confirmation, inviteScreen, family, back]);
+  useTelegramBack(Boolean(confirmation || inviteScreen || (family ? view !== "home" : onboarding === "join")), goBack);
 
   const refresh = useCallback(async () => {
     const request = ++sequence.current.value;
@@ -146,10 +153,10 @@ export default function FamilyGate({ user, dev, onLogout, logoutBusy, authMessag
     });
   }
 
-  if (loading) return <main className="app"><p role="status">Загружаем семью…</p></main>;
+  if (loading) return <main className="app"><Loading>Загружаем семью…</Loading></main>;
   return <>
     <header className="auth-bar">
-      <div><strong>{user.firstName} {user.lastName || ""}</strong>
+      <div><img className="user-avatar" src={user.photoUrl || "/svg-avatar.svg"} alt="" width="36" height="36" referrerPolicy="no-referrer" /><strong>{user.firstName} {user.lastName || ""}</strong>
         {family && !inviteScreen ? <details className="account-menu family-menu"><summary>{family.name}</summary><button type="button" onClick={event => { event.currentTarget.closest("details")?.removeAttribute("open"); setView(view === "family" ? "home" : "family"); setConfirmation(null); }}>{view === "family" ? "На главную" : family.role === "owner" ? "Настройки семьи" : "Участники семьи"}</button></details> : dev && <small>Тестовый профиль</small>}
       </div>
       <details className="account-menu"><summary>Аккаунт</summary><button type="button" onClick={onLogout} disabled={logoutBusy}>{logoutBusy ? "Выходим…" : "Выйти из аккаунта"}</button></details>
@@ -157,7 +164,8 @@ export default function FamilyGate({ user, dev, onLogout, logoutBusy, authMessag
     </header>
     <section className="app family-screen" aria-label="Семья">
       <p className="eyebrow">Family Planner</p>
-      {(!family || inviteScreen || view === "family") && <h1>{inviteScreen ? "Приглашение в семью" : family ? family.name : onboarding === "join" ? "Вас пригласили в семью" : "Всё начинается с семьи"}</h1>}
+      {family && !inviteScreen && view === "family" && <button className="text-button back-button" onClick={goBack}>← На главную</button>}
+      {(!family || inviteScreen || view === "family") && <h1 data-screen-heading tabIndex={-1}>{inviteScreen ? "Приглашение в семью" : family ? family.name : onboarding === "join" ? "Вас пригласили в семью" : "Всё начинается с семьи"}</h1>}
       {error && <p role="alert">{error}</p>}
       {notice && <p role="status">{notice}</p>}
       {tokenToPreview && !checkedInvite && <p role="status">Проверяем приглашение…</p>}
@@ -190,8 +198,9 @@ export default function FamilyGate({ user, dev, onLogout, logoutBusy, authMessag
       </>}
       {family && !inviteScreen && <>
         {view === "home" && <nav className="home-sections" aria-label="Разделы приложения">
-          <button onClick={() => setView("tasks")}>Дела</button>
+          <h1 className="sr-only" data-screen-heading tabIndex={-1}>Главная</h1>
           <button disabled>Список покупок<small>Скоро</small></button>
+          <button onClick={() => setView("tasks")}>Список дел</button>
           <button disabled>Вишлисты<small>Скоро</small></button>
         </nav>}
         {view === "tasks" && <><button className="text-button back-button" onClick={() => setView("home")}>← На главную</button><App /></>}
@@ -247,12 +256,10 @@ export default function FamilyGate({ user, dev, onLogout, logoutBusy, authMessag
           {!dev && <WriteAccess />}
         </>}
       </>}
-      {confirmation && <div ref={confirmationPanel} tabIndex={-1} role="alertdialog" aria-labelledby="confirm-title" className="family-confirm" onKeyDown={event => { if (event.key === "Escape" && !busy) setConfirmation(null); }}>
-        <h2 id="confirm-title">{confirmation.kind === "member" ? `Удалить участника «${confirmation.name}»?` : "Отозвать приглашение?"}</h2>
+      {confirmation && <ConfirmDialog title={confirmation.kind === "member" ? `Удалить участника «${confirmation.name}»?` : "Отозвать приглашение?"}
+        busy={busy} confirmLabel={confirmation.kind === "member" ? "Удалить участника" : "Отозвать приглашение"} onConfirm={() => void confirm()} onCancel={() => setConfirmation(null)}>
         <p>{confirmation.kind === "member" ? "Участник потеряет доступ к семье. По действующей ссылке он сможет вступить снова." : "По этой ссылке больше нельзя будет вступить в семью."}</p>
-        <button className="danger" type="button" disabled={busy} onClick={() => void confirm()}>{confirmation.kind === "member" ? "Удалить участника" : "Отозвать приглашение"}</button>
-        <button type="button" disabled={busy} onClick={() => setConfirmation(null)}>Отмена</button>
-      </div>}
+      </ConfirmDialog>}
     </section>
   </>;
 }

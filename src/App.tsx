@@ -98,7 +98,7 @@ function App() {
 
   return (
     <main className="app">
-      <h2>Мои дела</h2>
+      <h2 data-screen-heading tabIndex={-1}>Мои дела</h2>
 
       <form onSubmit={handleSubmit}>
         <input

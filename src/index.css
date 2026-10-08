@@ -19,9 +19,30 @@ button, input, summary { -webkit-tap-highlight-color: transparent; }
 summary { cursor: pointer; min-height: 44px; padding: 10px 0; font-weight: 600; color: var(--text-h); }
 summary:focus-visible { outline: 3px solid var(--accent); outline-offset: 3px; border-radius: 4px; }
 @media (prefers-color-scheme: dark) {
-  :root {
+  :root:not([data-telegram-theme="light"]) {
     color-scheme: dark; --text: #b5c0d1; --text-h: #eff3fb; --bg: #1b2433; --border: #3e4b61;
     --accent: #abc3ff; --accent-bg: #253656; --accent-border: #5b78ac;
     --social-bg: #253043; --danger: #ffb0bb; --danger-bg: #402731; background: #111925;
   }
+}
+
+:root[data-telegram-theme="dark"] {
+  color-scheme: dark; --text: #b5c0d1; --text-h: #eff3fb; --bg: #1b2433; --border: #3e4b61;
+  --accent: #abc3ff; --accent-bg: #253656; --accent-border: #5b78ac;
+  --social-bg: #253043; --danger: #ffb0bb; --danger-bg: #402731; background: #111925;
+}
+:root[data-telegram-theme] {
+  --text: var(--tg-theme-text-color, #525e70);
+  --text-h: var(--tg-theme-text-color, #192638);
+  --bg: var(--tg-theme-bg-color, #fff);
+  --social-bg: var(--tg-theme-secondary-bg-color, #f3f5f8);
+  --accent: var(--tg-theme-link-color, #315dcc);
+  background: var(--social-bg);
+}
+#root {
+  min-height: var(--app-height, 100svh);
+  padding-top: calc(max(env(safe-area-inset-top, 0px), var(--tg-safe-area-inset-top, 0px)) + var(--tg-content-safe-area-inset-top, 0px));
+  padding-bottom: calc(max(env(safe-area-inset-bottom, 0px), var(--tg-safe-area-inset-bottom, 0px)) + var(--tg-content-safe-area-inset-bottom, 0px));
+  padding-left: calc(max(env(safe-area-inset-left, 0px), var(--tg-safe-area-inset-left, 0px)) + var(--tg-content-safe-area-inset-left, 0px));
+  padding-right: calc(max(env(safe-area-inset-right, 0px), var(--tg-safe-area-inset-right, 0px)) + var(--tg-content-safe-area-inset-right, 0px));
 }
