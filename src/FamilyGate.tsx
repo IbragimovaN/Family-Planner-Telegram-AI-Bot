@@ -2,8 +2,9 @@ import { useCallback, useEffect, useRef, useState, type FormEvent } from "react"
 import App from "./App";
 import WriteAccess from "./WriteAccess";
 import { apiRequest } from "./api/http";
-import { navigate, useNavigation, useTelegramBack } from "./navigation";
+import { navigate, useNavigation, useTelegramBack, type Route } from "./navigation";
 import { ConfirmDialog, Loading } from "./components/States";
+import Shopping from "./Shopping";
 
 type Family = { id: string; name: string; timezone: string; role: "owner" | "member" };
 type Member = { id: string; firstName: string; lastName: string | null; role: "owner" | "member" };
@@ -58,13 +59,16 @@ export default function FamilyGate({ user, dev, onLogout, logoutBusy, authMessag
   const [error, setError] = useState("");
   const [notice, setNotice] = useState("");
   const { route: view, back } = useNavigation();
-  const setView = navigate;
+  function setView(route: Route) { setNotice(""); setError(""); navigate(route); }
   const [confirmation, setConfirmation] = useState<{ kind: "member" | "invitation"; id: string; name: string } | null>(null);
   const sequence = useRef({ value: 0 });
   const [clock, setClock] = useState(() => Date.now());
   const inFlight = useRef(false);
   const goBack = useCallback(() => {
     if (busy) return;
+    const dialog = document.querySelector<HTMLDialogElement>("dialog[open]");
+    if (dialog) { dialog.dispatchEvent(new Event("cancel", { cancelable: true })); return; }
+    if (document.querySelector('.shopping-screen[aria-busy="true"]')) return;
     if (confirmation) { setConfirmation(null); return; }
     if (inviteScreen) {
       setInviteScreen(false); setJoinText(""); setOnboarding("create");
@@ -199,11 +203,12 @@ export default function FamilyGate({ user, dev, onLogout, logoutBusy, authMessag
       {family && !inviteScreen && <>
         {view === "home" && <nav className="home-sections" aria-label="Разделы приложения">
           <h1 className="sr-only" data-screen-heading tabIndex={-1}>Главная</h1>
-          <button disabled>Список покупок<small>Скоро</small></button>
+          <button onClick={() => setView("shopping")}>Список покупок</button>
           <button onClick={() => setView("tasks")}>Список дел</button>
           <button disabled>Вишлисты<small>Скоро</small></button>
         </nav>}
         {view === "tasks" && <><button className="text-button back-button" onClick={() => setView("home")}>← На главную</button><App /></>}
+        {view.startsWith("shopping") && <Shopping key={`${family.id}:${view}`} route={view} timezone={family.timezone} back={back} />}
         {view === "family" && <>
           <div className="profile-card"><div><strong>{user.firstName} {user.lastName || ""}</strong><p className="muted">{family.role === "owner" ? "Вы управляете этой семьёй" : "Вы участник этой семьи"}</p><small>{family.role === "owner" ? "Владелец" : "Участник"}</small></div><img src="/svg-avatar.svg" alt="" width="72" height="72" /></div>
           <div className="section-caption">{family.role === "owner" ? "Участники и настройки" : "Участники семьи"}</div>

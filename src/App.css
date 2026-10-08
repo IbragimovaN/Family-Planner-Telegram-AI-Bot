@@ -223,6 +223,7 @@ label {
 }
 
 .user-avatar { border-radius: 50%; object-fit: cover; vertical-align: middle; margin-right: 8px; }
+:root[data-telegram-theme="dark"] .user-avatar[src="/svg-avatar.svg"] { filter: invert(1); }
 .sr-only { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
 .app { overflow-wrap: anywhere; }
 .app input, .app textarea { font: inherit; color: var(--text-h); background: var(--bg); border: 1px solid var(--border); border-radius: 10px; padding: 10px 12px; }
@@ -236,6 +237,14 @@ label {
 .button-row { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; }
 .button-row > button { flex: 1; }
 .error-notice { display: grid; gap: 8px; }
+.shopping-screen { display: grid; gap: 16px; min-width: 0; }
+.shopping-items, .shopping-history { list-style: none; padding: 0; margin: 0; display: grid; gap: 12px; }
+.shopping-items > li { padding: 14px; display: grid; gap: 10px; }
+.shopping-history button { width: 100%; display: grid; gap: 6px; text-align: left; }
+.shopping-form { padding: 16px; background: var(--social-bg); border-radius: 14px; }
+.purchase-heading { display: flex; align-items: center; gap: 8px; color: var(--text-h); }
+.family-screen .purchase-check { display: grid; place-items: center; flex: 0 0 44px; width: 44px; height: 44px; }
+.purchase-note { white-space: pre-wrap; }
 :root[data-telegram-theme] .app .primary { background: var(--tg-theme-button-color, #315dcc); color: var(--tg-theme-button-text-color, #fff); border-color: transparent; }
 @media (max-width: 360px) {
   .family-screen, .auth-screen { padding: 14px; }

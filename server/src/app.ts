@@ -3,6 +3,7 @@ import type Database from "better-sqlite3";
 import { createAuth, sessionFrom } from "./auth/routes.js";
 import type { AuthConfig } from "./auth/config.js";
 import { createFamilyRouter, findFamily, FamilyError } from "./family.js";
+import { createShoppingRouter } from "./shopping.js";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 
@@ -61,6 +62,7 @@ app.get("/api/me", (_request, response) => {
   }, authMethod: method, family: findFamily(database, user.id) });
 });
 app.use("/api", createFamilyRouter(database, config));
+app.use("/api", createShoppingRouter(database));
 
 app.get("/api/tasks", (_request, response) => {
   const rows = database
