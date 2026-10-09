@@ -1,7 +1,7 @@
 :root {
   font-family: system-ui, 'Segoe UI', sans-serif; font-size: 16px; line-height: 1.5;
   font-synthesis: none; text-rendering: optimizeLegibility; -webkit-font-smoothing: antialiased;
-  color-scheme: light;
+  color-scheme: only light;
   --text: #615b72; --text-h: #393247; --bg: #fffafc; --border: #ded6e5;
   --accent: #71628d; --accent-bg: #eee7f3; --accent-border: #c4b3d5;
   --primary: #71628d; --primary-hover: #5e5078; --primary-text: #fff;
@@ -20,24 +20,7 @@ small { display: block; color: var(--text); font-size: 13px; font-weight: 400; }
 button, input, summary { -webkit-tap-highlight-color: transparent; }
 summary { cursor: pointer; min-height: 44px; padding: 10px 0; font-weight: 600; color: var(--text-h); }
 summary:focus-visible { outline: 3px solid var(--accent); outline-offset: 3px; border-radius: 4px; }
-@media (prefers-color-scheme: dark) {
-  :root:not([data-telegram-theme="light"]) {
-    color-scheme: dark; --text: #c7bdd1; --text-h: #f5edf8; --bg: #292432; --border: #51465e;
-    --accent: #d1bce7; --accent-bg: #3b3049; --accent-border: #827094;
-    --primary: #cbb5e1; --primary-hover: #dec9ef; --primary-text: #292033;
-    --page-base: #201c28; --page-warm: #3b2936; --page-cool: #263748; --shadow: #00000026;
-    --social-bg: #342c3e; --danger: #ffb0c1; --danger-bg: #482d3a;
-  }
-}
-
-:root[data-telegram-theme="dark"] {
-  color-scheme: dark; --text: #c7bdd1; --text-h: #f5edf8; --bg: #292432; --border: #51465e;
-  --accent: #d1bce7; --accent-bg: #3b3049; --accent-border: #827094;
-    --primary: #cbb5e1; --primary-hover: #dec9ef; --primary-text: #292033;
-    --page-base: #201c28; --page-warm: #3b2936; --page-cool: #263748; --shadow: #00000026;
-  --social-bg: #342c3e; --danger: #ffb0c1; --danger-bg: #482d3a;
-}
-
+/* Keep the approved pastel palette independent of Telegram and OS themes. */
 #root {
   min-height: var(--app-height, 100svh);
   padding-top: calc(max(env(safe-area-inset-top, 0px), var(--tg-safe-area-inset-top, 0px)) + var(--tg-content-safe-area-inset-top, 0px));

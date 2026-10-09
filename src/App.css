@@ -211,14 +211,12 @@ label {
 .section-caption { text-align: center; color: var(--accent); font-weight: 650; font-size: 14px; padding: 16px; border: 6px solid var(--social-bg); border-radius: 16px; }
 .family-screen > .app { width: 100%; margin: 0; }
 .back-button { justify-self: start; }
-@media (prefers-color-scheme: dark) { .profile-card img { filter: invert(1); } }
 @media (max-width: 480px) {
   .family-screen { padding: 20px; margin-top: 24px; }
   .profile-card img { width: 52px; height: 52px; }
 }
 
 .user-avatar { border-radius: 50%; object-fit: cover; vertical-align: middle; margin-right: 8px; }
-:root[data-telegram-theme="dark"] .user-avatar[src="/svg-avatar.svg"] { filter: invert(1); }
 .sr-only { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
 .app { overflow-wrap: anywhere; }
 .app input, .app textarea { font: inherit; color: var(--text-h); background: var(--bg); border: 1px solid var(--border); border-radius: 10px; padding: 10px 12px; }
