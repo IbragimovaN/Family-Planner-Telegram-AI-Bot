@@ -58,6 +58,7 @@ export default function FamilyGate({ user, dev, onLogout, logoutBusy, authMessag
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
   const [notice, setNotice] = useState("");
+  const [editingFamily, setEditingFamily] = useState(false);
   const { route: view, back } = useNavigation();
   function setView(route: Route) { setNotice(""); setError(""); navigate(route); }
   const [confirmation, setConfirmation] = useState<{ kind: "member" | "invitation"; id: string; name: string } | null>(null);
@@ -144,6 +145,7 @@ export default function FamilyGate({ user, dev, onLogout, logoutBusy, authMessag
     void action(async () => {
       await apiRequest("/api/family", { method: "PATCH", body: JSON.stringify({ name: data.get("name"), timezone: data.get("timezone") }) });
       setNotice("Настройки сохранены.");
+      setEditingFamily(false);
     });
   }
   async function confirm() {
@@ -158,18 +160,46 @@ export default function FamilyGate({ user, dev, onLogout, logoutBusy, authMessag
   }
 
   if (loading) return <main className="app"><Loading>Загружаем семью…</Loading></main>;
-  return <>
-    <header className="auth-bar">
-      <div><img className="user-avatar" src={user.photoUrl || "/svg-avatar.svg"} alt="" width="36" height="36" referrerPolicy="no-referrer" /><strong>{user.firstName} {user.lastName || ""}</strong>
+  const isHome = Boolean(family && !inviteScreen && view === "home");
+  const isFamily = Boolean(family && !inviteScreen && view === "family");
+  const isFunctional = Boolean(family && !inviteScreen && (view === "tasks" || view === "purchases" || view.startsWith("shopping")));
+  const activeInvitations = invitations.filter(link => !link.revokedAt && link.expiresAt * 1000 > clock);
+  const memberWord = new Intl.PluralRules("ru").select(members.length);
+  return <div className={isHome ? "home-shell" : isFamily || isFunctional ? "functional-shell" : undefined}>
+    {!isFamily && !isFunctional && <header className="auth-bar">
+      <div className="header-identity"><div className="header-profile"><img className="user-avatar" src={user.photoUrl || "/pastel-avatar.svg"} alt="" width="56" height="56" referrerPolicy="no-referrer" /><strong>{user.firstName} {user.lastName || ""}</strong></div>
         {family && !inviteScreen ? <details className="account-menu family-menu"><summary>{family.name}</summary><button type="button" onClick={event => { event.currentTarget.closest("details")?.removeAttribute("open"); setView(view === "family" ? "home" : "family"); setConfirmation(null); }}>{view === "family" ? "На главную" : family.role === "owner" ? "Настройки семьи" : "Участники семьи"}</button></details> : dev && <small>Тестовый профиль</small>}
       </div>
-      <details className="account-menu"><summary>Аккаунт</summary><button type="button" onClick={onLogout} disabled={logoutBusy}>{logoutBusy ? "Выходим…" : "Выйти из аккаунта"}</button></details>
+      <details className="account-menu header-account"><summary>Аккаунт</summary><button type="button" onClick={onLogout} disabled={logoutBusy}>{logoutBusy ? "Выходим…" : "Выйти из аккаунта"}</button></details>
       {authMessage && <p role="alert">{authMessage}</p>}
-    </header>
-    <section className="app family-screen" aria-label="Семья">
+    </header>}
+    <section className={`app family-screen${isHome ? " home-screen" : ""}${isFamily ? " family-overview" : ""}${isFamily || isFunctional ? " functional-layout" : ""}`} aria-label="Семья">
       <p className="eyebrow">Family Planner</p>
       {family && !inviteScreen && view === "family" && <button className="text-button back-button" onClick={goBack}>← На главную</button>}
-      {(!family || inviteScreen || view === "family") && <h1 data-screen-heading tabIndex={-1}>{inviteScreen ? "Приглашение в семью" : family ? family.name : onboarding === "join" ? "Вас пригласили в семью" : "Всё начинается с семьи"}</h1>}
+      {(!family || inviteScreen || view === "family") && <div className="family-heading">
+        <h1 data-screen-heading tabIndex={-1}>{inviteScreen ? "Приглашение в семью" : family ? family.name : onboarding === "join" ? "Вас пригласили в семью" : "Всё начинается с семьи"}</h1>
+        {family && !inviteScreen && view === "family" && family.role === "owner" && <button
+          type="button" className="text-button family-settings-toggle" aria-label="Настройки семьи" title="Настройки семьи"
+          aria-expanded={editingFamily} aria-controls="family-settings" disabled={busy} onClick={() => setEditingFamily(value => !value)}>
+          <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+            <path d="m10 3-.6 2.4-1.6.9-2.4-.7-2 3.4 1.8 1.7v2.6L3.4 15l2 3.4 2.4-.7 1.6.9L10 21h4l.6-2.4 1.6-.9 2.4.7 2-3.4-1.8-1.7v-2.6L20.6 9l-2-3.4-2.4.7-1.6-.9L14 3Z" />
+            <circle cx="12" cy="12" r="3" />
+          </svg>
+        </button>}
+      </div>}
+      {isFamily && <p className="family-subtitle">Семейное пространство</p>}
+      {family && !inviteScreen && view === "family" && editingFamily && family.role === "owner" && <section id="family-settings" className="settings-panel">
+            <form key={`${family.id}:${family.name}:${family.timezone}`} onSubmit={save}>
+              <label htmlFor="settings-name">Название</label>
+              <input id="settings-name" name="name" defaultValue={family.name} maxLength={100} required disabled={busy} />
+              <label htmlFor="settings-timezone">Часовой пояс</label>
+              <input id="settings-timezone" name="timezone" defaultValue={family.timezone} list="timezones" required disabled={busy} />
+              <datalist id="timezones">{["Europe/Moscow", "Europe/Kaliningrad", "Europe/Samara", "Asia/Yekaterinburg", "Asia/Novosibirsk", "Asia/Vladivostok", "UTC"].map(zone => <option key={zone} value={zone} />)}</datalist>
+              <p className="muted">Неделя начинается в понедельник.</p>
+              <button className="primary" disabled={busy}>Сохранить настройки</button>
+              <button type="button" disabled={busy} onClick={() => setEditingFamily(false)}>Отмена</button>
+            </form>
+      </section>}
       {error && <p role="alert">{error}</p>}
       {notice && <p role="status">{notice}</p>}
       {tokenToPreview && !checkedInvite && <p role="status">Проверяем приглашение…</p>}
@@ -201,40 +231,51 @@ export default function FamilyGate({ user, dev, onLogout, logoutBusy, authMessag
         <button className="primary" onClick={() => { setInviteScreen(false); setJoinText(""); setView("home"); const url = new URL(window.location.href); url.searchParams.delete("invite"); url.searchParams.delete("tgWebAppStartParam"); window.history.replaceState(null, "", url); }}>Открыть свою семью</button>
       </>}
       {family && !inviteScreen && <>
-        {view === "home" && <nav className="home-sections" aria-label="Разделы приложения">
-          <h1 className="sr-only" data-screen-heading tabIndex={-1}>Главная</h1>
-          <button onClick={() => setView("shopping")}>Список покупок</button>
-          <button onClick={() => setView("tasks")}>Список дел</button>
-          <button disabled>Вишлисты<small>Скоро</small></button>
-        </nav>}
+        {view === "home" && <>
+          <div className="home-intro">
+            <h1 data-screen-heading tabIndex={-1}>Всё своё, вместе</h1>
+            <p>Для повседневных дел и маленьких желаний.</p>
+          </div>
+          <nav className="home-sections" aria-label="Разделы приложения">
+            <button onClick={() => setView("shopping")} aria-label="Продукты">
+              <img src="/home/groceries.jpg" alt="" width="1024" height="1024" />
+              <span className="home-card-caption"><strong>Продукты</strong><span aria-hidden="true">↗</span></span>
+            </button>
+            <button onClick={() => setView("purchases")} aria-label="Покупки">
+              <img src="/home/purchases.png" alt="" width="1254" height="1254" />
+              <span className="home-card-caption"><strong>Покупки</strong><span aria-hidden="true">↗</span></span>
+            </button>
+            <button onClick={() => setView("tasks")} aria-label="Список дел">
+              <img src="/home/tasks.png" alt="" width="1254" height="1254" />
+              <span className="home-card-caption"><strong>Список дел</strong><span aria-hidden="true">↗</span></span>
+            </button>
+            <button disabled aria-label="Вишлисты — скоро">
+              <img src="/home/wishlists.png" alt="" width="1254" height="1254" />
+              <span className="home-card-caption"><strong>Вишлисты</strong><small>Скоро</small></span>
+            </button>
+          </nav>
+        </>}
         {view === "tasks" && <><button className="text-button back-button" onClick={() => setView("home")}>← На главную</button><App /></>}
-        {view.startsWith("shopping") && <Shopping key={`${family.id}:${view}`} route={view} timezone={family.timezone} back={back} />}
+        {(view.startsWith("shopping") || view === "purchases") && <Shopping key={`${family.id}:${view}`} route={view} timezone={family.timezone} back={back} />}
         {view === "family" && <>
-          <div className="profile-card"><div><strong>{user.firstName} {user.lastName || ""}</strong><p className="muted">{family.role === "owner" ? "Вы управляете этой семьёй" : "Вы участник этой семьи"}</p><small>{family.role === "owner" ? "Владелец" : "Участник"}</small></div><img src="/svg-avatar.svg" alt="" width="72" height="72" /></div>
-          <div className="section-caption">{family.role === "owner" ? "Участники и настройки" : "Участники семьи"}</div>
-          <h2>Участники семьи</h2>
-          <ul className="family-list">{members.map(member => <li key={member.id}>
-            <span><strong>{member.firstName} {member.lastName || ""}</strong><small>{member.role === "owner" ? "Владелец" : "Участник"}</small></span>
-            {family.role === "owner" && member.role !== "owner" && <details><summary>Управление участником</summary><button className="danger" type="button" disabled={busy} onClick={() => setConfirmation({ kind: "member", id: member.id, name: member.firstName })}>Удалить участника</button></details>}
+          <div className="family-section-heading"><h2>Участники</h2><span className="family-count">{members.length} {memberWord === "one" ? "участник" : memberWord === "few" ? "участника" : "участников"}</span></div>
+          <ul className="family-list member-cards">{members.map(member => <li key={member.id}>
+            <img className="member-avatar" src="/svg-avatar.svg" alt="" width="64" height="64" />
+            <span className="member-info"><strong>{member.firstName} {member.lastName || ""}</strong><small className="family-role">{member.role === "owner" ? "Владелец" : "Участник"}</small></span>
+            {family.role === "owner" && member.role !== "owner" && <details className="family-row-menu"><summary aria-label={`Управление участником ${member.firstName}`}>⋮</summary><button className="danger" type="button" disabled={busy} onClick={() => setConfirmation({ kind: "member", id: member.id, name: member.firstName })}>Удалить участника</button></details>}
           </li>)}</ul>
+
           {family.role === "owner" && <>
-            <details className="settings-panel"><summary>Настройки семьи</summary>
-            <form key={`${family.id}:${family.name}:${family.timezone}`} onSubmit={save}>
-              <label htmlFor="settings-name">Название</label>
-              <input id="settings-name" name="name" defaultValue={family.name} maxLength={100} required disabled={busy} />
-              <label htmlFor="settings-timezone">Часовой пояс</label>
-              <input id="settings-timezone" name="timezone" defaultValue={family.timezone} list="timezones" required disabled={busy} />
-              <datalist id="timezones">{["Europe/Moscow", "Europe/Kaliningrad", "Europe/Samara", "Asia/Yekaterinburg", "Asia/Novosibirsk", "Asia/Vladivostok", "UTC"].map(zone => <option key={zone} value={zone} />)}</datalist>
-              <p className="muted">Неделя начинается в понедельник.</p>
-              <button className="primary" disabled={busy}>Сохранить настройки</button>
-            </form>
-            </details>
             <section className="invite-panel">
-            <h2>Приглашения</h2>
-            <p>Ссылка действует 7 дней и подходит для нескольких человек.</p>
+            <div className="invite-callout">
+            <div className="invite-illustration" aria-hidden="true"><i /><i /><span>+</span></div>
+            <div className="invite-callout-content">
+            <h2>Пригласить участника</h2>
+            <p>Отправьте ссылку, чтобы присоединить членов семьи к вашему планеру.</p>
             <button className={invitation ? "" : "primary"} type="button" disabled={busy} onClick={() => void action(async () => {
               setInvitation(await apiRequest<NewInvitation>("/api/family/invitations", { method: "POST", body: "{}" }));
             })}>Создать приглашение</button>
+            </div></div>
             {invitation && <div className="invitation-result">
               <label htmlFor="new-invite">{invitation.url ? "Ссылка приглашения" : "Код приглашения"}</label>
               <input id="new-invite" readOnly value={invitation.url || invitation.token} onFocus={event => event.target.select()} />
@@ -251,11 +292,20 @@ export default function FamilyGate({ user, dev, onLogout, logoutBusy, authMessag
                 catch { setError("Выделите и скопируйте приглашение из поля вручную."); }
               }}>Скопировать</button>
               <p>Сохраните ссылку сейчас: после обновления страницы она больше не отображается.</p>
+              <button type="button" disabled={busy} onClick={() => setInvitation(null)}>Отмена</button>
             </div>}
-            {invitations.length > 0 && <details><summary>Управление ссылками · {invitations.length}</summary><ul className="family-list">{invitations.map(link => <li key={link.id}>
-              <span>До {new Date(link.expiresAt * 1000).toLocaleString("ru-RU", { timeZone: family.timezone })} · {link.revokedAt ? "Отозвано" : link.expiresAt * 1000 <= clock ? "Истекло" : "Действует"}</span>
-              {!link.revokedAt && link.expiresAt * 1000 > clock && <button className="danger" type="button" disabled={busy} onClick={() => setConfirmation({ kind: "invitation", id: link.id, name: "приглашение" })}>Отозвать</button>}
-            </li>)}</ul></details>}
+            <details className="active-invitations" open><summary>Активные приглашения <span className="family-count">{activeInvitations.length}</span></summary>
+            {!activeInvitations.length ? <p className="empty-state">Активных приглашений пока нет.</p> : <ul className="invitation-rows">{activeInvitations.map((link, index) => <li key={link.id}>
+              <span className="invitation-link-icon" aria-hidden="true">↗</span>
+              <div className="invitation-info"><strong>Ссылка {index + 1}</strong><small>Действует 7 дней · Создана {new Date(link.createdAt * 1000).toLocaleDateString("ru-RU", { timeZone: family.timezone })}</small></div>
+              <span className="invitation-status">Активна</span>
+              {invitation?.invitation.id === link.id && <button className="text-button" type="button" aria-label={`Скопировать ссылку ${index + 1}`} onClick={async () => {
+                try { await navigator.clipboard.writeText(invitation.url || invitation.token); setNotice("Приглашение скопировано."); }
+                catch { setError("Не удалось скопировать ссылку. Скопируйте её из поля приглашения."); }
+              }}>⧉</button>}
+              <details className="family-row-menu"><summary aria-label={`Управление ссылкой ${index + 1}`}>⋮</summary><button className="danger" type="button" disabled={busy} onClick={() => setConfirmation({ kind: "invitation", id: link.id, name: "приглашение" })}>Отозвать</button></details>
+            </li>)}</ul>}
+            </details>
             </section>
           </>}
           {!dev && <WriteAccess />}
@@ -266,5 +316,5 @@ export default function FamilyGate({ user, dev, onLogout, logoutBusy, authMessag
         <p>{confirmation.kind === "member" ? "Участник потеряет доступ к семье. По действующей ссылке он сможет вступить снова." : "По этой ссылке больше нельзя будет вступить в семью."}</p>
       </ConfirmDialog>}
     </section>
-  </>;
+  </div>;
 }

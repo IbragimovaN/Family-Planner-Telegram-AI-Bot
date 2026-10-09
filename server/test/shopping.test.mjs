@@ -7,10 +7,10 @@ import { migrate } from "../dist/db/migrations.js";
 import { createApp } from "../dist/app.js";
 import { readAuthConfig } from "../dist/auth/config.js";
 
-async function fixture(t) {
+async function fixture(t, classify = async () => { throw new Error("AI offline in tests"); }) {
   const db = openDatabase(":memory:"); migrate(db);
   const config = readAuthConfig({ NODE_ENV: "production", TELEGRAM_BOT_TOKEN: "shopping-test", APP_ORIGIN: "https://family.example", TELEGRAM_BOT_USERNAME: "family_test_bot" });
-  const server = createApp(db, config).listen(0, "127.0.0.1"); await once(server, "listening");
+  const server = createApp(db, config, classify).listen(0, "127.0.0.1"); await once(server, "listening");
   t.after(async () => { server.closeAllConnections(); await new Promise(resolve => server.close(resolve)); db.close(); });
   async function request(cookie, path, method = "GET", body) {
     return fetch(`http://127.0.0.1:${server.address().port}/api${path}`, { method,
@@ -106,4 +106,107 @@ test("failed replacement rolls back closing and retains all purchases", async t 
   assert.equal((await f.request(f.member, "/shopping-lists/current/close", "POST", { listId: f.initial.list.id })).status, 500);
   const current = await f.current(); assert.equal(current.list.id, f.initial.list.id); assert.equal(current.list.closedAt, null); assert.equal(current.items.length, 1);
   assert.equal((await (await f.request(f.owner, "/shopping-lists/history")).json()).lists.length, 0);
+});
+
+test("first item skips AI; later additions group categories and toggling never moves rows", async t => {
+  const calls = [];
+  const categories = { "Молоко": 5, "Шампунь": 0, "Корм": 1, "Огурцы": 2, "Курица": 3, "Яйца": 4, "Тунец": 6, "Макароны": 7, "Соль": 8, "Хлеб": 9, "Вода": 10, "Шоколад": 11, "Чипсы": 12, "Творог": 5 };
+  const f = await fixture(t, async items => { calls.push(items); return items.map(item => ({ id: item.id, category: categories[item.title] })); });
+  const milk = await f.add(f.owner, { title: "Молоко" }); assert.equal(calls.length, 0);
+  for (const title of ["Чипсы", "Шоколад", "Вода", "Хлеб", "Соль", "Макароны", "Тунец", "Яйца", "Курица", "Огурцы", "Корм", "Шампунь", "Творог"]) await f.add(f.member, { title });
+  assert.deepEqual(calls[0].map(i => i.title), ["Молоко", "Чипсы"]);
+  assert.ok(calls.slice(1).every(items => items.length === 1));
+  const before = (await f.current()).items;
+  assert.deepEqual(before.map(i => i.title), ["Шампунь", "Корм", "Огурцы", "Курица", "Яйца", "Молоко", "Творог", "Тунец", "Макароны", "Соль", "Хлеб", "Вода", "Шоколад", "Чипсы"]);
+  const count = calls.length;
+  for (const bought of [true, false]) {
+    await f.request(f.member, `/shopping-items/${milk}`, "PATCH", { bought });
+    assert.deepEqual((await f.current()).items.map(i => i.id), before.map(i => i.id));
+  }
+  await f.request(f.owner, `/shopping-items/${milk}`, "PATCH", { title: "Кефир" });
+  assert.deepEqual((await f.current()).items.map(i => i.id), before.map(i => i.id));
+  assert.equal(calls.length, count);
+  await f.request(f.owner, "/shopping-lists/current/close", "POST", { listId: f.initial.list.id });
+  const archive = await (await f.request(f.owner, `/shopping-lists/${f.initial.list.id}`)).json();
+  assert.deepEqual(archive.items.map(i => i.id), before.map(i => i.id));
+});
+
+test("AI failure or invalid IDs append without losing items; a later addition retries unknown categories", async t => {
+  let attempt = 0;
+  const f = await fixture(t, async items => {
+    attempt++;
+    if (attempt === 1) throw new Error("offline");
+    if (attempt === 2) return items.map(() => ({ id: "foreign-id", category: 0 }));
+    if (attempt === 3) return items.map(i => ({ id: i.id, category: 99 }));
+    return items.map(i => ({ id: i.id, category: i.title === "Шампунь" ? 0 : 5 }));
+  });
+  for (const title of ["Молоко", "Шампунь", "Кефир", "Творог"]) await f.add(f.owner, { title });
+  assert.deepEqual((await f.current()).items.map(i => i.title), ["Молоко", "Шампунь", "Кефир", "Творог"]);
+  await f.add(f.owner, { title: "Йогурт" });
+  assert.deepEqual((await f.current()).items.map(i => i.title), ["Шампунь", "Молоко", "Кефир", "Творог", "Йогурт"]);
+});
+
+test("concurrent additions are classified against the latest list and keep both products", async t => {
+  const calls = [];
+  const f = await fixture(t, async items => { calls.push(items); return items.map(i => ({ id: i.id, category: i.title === "Шампунь" ? 0 : 5 })); });
+  const results = await Promise.all([f.add(f.owner, { title: "Молоко" }), f.add(f.member, { title: "Шампунь" })]);
+  assert.equal(new Set(results).size, 2); assert.equal(calls.length, 1); assert.equal(calls[0].length, 2);
+  assert.deepEqual((await f.current()).items.map(i => i.title), ["Шампунь", "Молоко"]);
+});
+
+test("closing a list during AI classification prevents a late insertion", async t => {
+  let release, started;
+  const waiting = new Promise(resolve => { started = resolve; });
+  const answer = new Promise(resolve => { release = resolve; });
+  const f = await fixture(t, async items => { started(); await answer; return items.map(i => ({ id: i.id, category: 5 })); });
+  await f.add();
+  const pending = f.request(f.member, "/shopping-lists/current/items", "POST", { listId: f.initial.list.id, title: "Кефир" });
+  await waiting;
+  await f.request(f.owner, "/shopping-lists/current/close", "POST", { listId: f.initial.list.id });
+  release(); assert.equal((await pending).status, 409);
+  assert.equal((await f.current()).items.length, 0);
+  const archive = await (await f.request(f.owner, `/shopping-lists/${f.initial.list.id}`)).json();
+  assert.equal(archive.items.length, 1);
+});
+
+test("general purchases share CRUD, retain order, never call AI and stay separate from groceries", async t => {
+  let aiCalls = 0;
+  const f = await fixture(t, async () => { aiCalls++; return []; });
+  const ids = [];
+  for (const title of ["Лампа", "Стул"]) {
+    const result = await f.request(f.member, "/purchases", "POST", { title });
+    assert.equal(result.status, 201); ids.push((await result.json()).id);
+  }
+  const read = async cookie => (await (await f.request(cookie, "/purchases")).json()).items;
+  assert.deepEqual(await read(f.owner), await read(f.member));
+  assert.equal((await f.current()).items.length, 0);
+  assert.equal((await f.request(f.owner, `/purchases/${ids[0]}`, "PATCH", { title: "Настольная лампа", bought: true })).status, 204);
+  assert.deepEqual((await read(f.member)).map(i => i.id), ids);
+  assert.equal((await read(f.member))[0].bought, true);
+  assert.equal((await f.request(f.member, `/purchases/${ids[0]}`, "PATCH", { bought: false })).status, 204);
+  assert.equal((await f.request(f.owner, `/shopping-items/${ids[0]}`, "PATCH", { bought: true })).status, 404);
+  const grocery = await f.add();
+  assert.equal((await f.request(f.owner, `/purchases/${grocery}`, "PATCH", { bought: true })).status, 404);
+  assert.equal((await f.request(f.owner, "/purchases/current/close", "POST", {})).status, 404);
+  assert.equal((await f.request(f.owner, "/purchases/history")).status, 404);
+  for (const body of [{title:" "},{title:"x".repeat(201)},{title:"Стол",family_id:"spoof"}]) assert.equal((await f.request(f.owner,"/purchases","POST",body)).status,400);
+  assert.equal((await f.request(f.member, `/purchases/${ids[0]}`, "DELETE", {})).status,204);
+  assert.deepEqual((await read(f.owner)).map(i => i.id), [ids[1]]);
+  assert.equal(aiCalls, 0);
+});
+
+test("general purchases reject anonymous, foreign-family and removed members", async t => {
+  const f = await fixture(t);
+  const created = await (await f.request(f.owner,"/purchases","POST",{title:"Лампа"})).json();
+  for (const [path,method,body] of [["/purchases","GET"],["/purchases","POST",{title:"Книга"}],[`/purchases/${created.id}`,"PATCH",{bought:true}],[`/purchases/${created.id}`,"DELETE",{}]]) {
+    assert.equal((await f.request(null,path,method,body)).status,401);
+    assert.equal((await f.request(f.alone,path,method,body)).status,403);
+    if(path!=="/purchases") assert.equal((await f.request(f.outsider,path,method,body)).status,404);
+  }
+  assert.equal((await (await f.request(f.outsider,"/purchases")).json()).items.length,0);
+  const people = await (await f.request(f.owner,"/family/members")).json();
+  const memberId = people.members.find(m=>m.role==="member").id;
+  await f.request(f.owner,`/family/members/${memberId}`,"DELETE",{});
+  assert.equal((await f.request(f.member,"/purchases")).status,403);
+  assert.equal((await f.request(f.member,`/purchases/${created.id}`,"PATCH",{bought:true})).status,403);
 });

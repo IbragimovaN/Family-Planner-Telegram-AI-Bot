@@ -169,4 +169,30 @@ ALTER TABLE sessions ADD COLUMN auth_method TEXT NOT NULL DEFAULT 'telegram'
 ALTER TABLE prototype_tasks ADD COLUMN owner_user_id TEXT REFERENCES users(id);
 CREATE INDEX prototype_tasks_owner ON prototype_tasks(owner_user_id, created_at);
 `,
+}, {
+  version: 3,
+  name: "shopping_stable_order",
+  sql: `
+ALTER TABLE shopping_items ADD COLUMN category_rank INTEGER CHECK(category_rank BETWEEN 0 AND 13);
+ALTER TABLE shopping_items ADD COLUMN sort_position INTEGER NOT NULL DEFAULT 0;
+WITH ordered AS (
+  SELECT id, row_number() OVER (PARTITION BY list_id ORDER BY created_at,rowid) AS position FROM shopping_items
+) UPDATE shopping_items SET sort_position=(SELECT position FROM ordered WHERE ordered.id=shopping_items.id);
+CREATE INDEX shopping_items_position ON shopping_items(family_id,list_id,sort_position);
+`,
+}, {
+  version: 4,
+  name: "general_family_purchases",
+  sql: `
+CREATE TABLE purchases (
+  id TEXT PRIMARY KEY,
+  family_id TEXT NOT NULL REFERENCES families(id) ON DELETE CASCADE,
+  title TEXT NOT NULL CHECK(length(trim(title)) BETWEEN 1 AND 200),
+  bought INTEGER NOT NULL DEFAULT 0 CHECK(bought IN (0,1)),
+  created_by_user_id TEXT NOT NULL REFERENCES users(id),
+  created_at INTEGER NOT NULL DEFAULT (unixepoch()),
+  updated_at INTEGER NOT NULL DEFAULT (unixepoch())
+) STRICT;
+CREATE INDEX purchases_family ON purchases(family_id,created_at);
+`,
 }];

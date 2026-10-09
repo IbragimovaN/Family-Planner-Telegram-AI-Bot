@@ -130,7 +130,7 @@ function App() {
 
       {error && <p role="alert">{error}</p>}
 
-      <div className="task-toolbar">
+      {tasks.length > 0 && <div className="task-toolbar">
         <button
           type="button"
           className="filter-button"
@@ -139,7 +139,7 @@ function App() {
         >
           {showCompleted ? "Скрыть выполненные" : "Показать все"}
         </button>
-      </div>
+      </div>}
 
       {isLoading ? (
         <p>Загрузка...</p>

@@ -60,6 +60,19 @@ test("auth migration preserves version-1 data without assigning old tasks to a u
   assert.equal(db.prepare("SELECT checksum FROM schema_migrations WHERE version=1").get().checksum, checksum);
 });
 
+test("shopping ordering migration preserves legacy purchases and assigns stable positions", t => {
+  const db = openDatabase(":memory:"); t.after(() => db.close());
+  migrate(db, migrations.slice(0, 2)); seed(db);
+  db.exec(`INSERT INTO shopping_lists(id,family_id) VALUES ('list','f1');
+    INSERT INTO shopping_items(id,family_id,list_id,title,bought,created_by_user_id) VALUES
+    ('first','f1','list','Молоко',1,'u1'),('second','f1','list','Хлеб',0,'u1');`);
+  assert.equal(migrate(db), migrations.length - 2);
+  assert.deepEqual(db.prepare("SELECT id,bought,category_rank,sort_position FROM shopping_items ORDER BY sort_position").all(), [
+    { id: "first", bought: 1, category_rank: null, sort_position: 1 }, { id: "second", bought: 0, category_rank: null, sort_position: 2 },
+  ]);
+  assert.equal(migrate(db), 0);
+});
+
 test("pending schema cannot be used by application and failed migrations roll back", (t) => {
   const db = openDatabase(":memory:");
   t.after(() => db.close());

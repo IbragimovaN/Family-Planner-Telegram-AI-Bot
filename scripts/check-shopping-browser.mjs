@@ -14,7 +14,7 @@ import { createApp } from "../server/dist/app.js";
 
 const db = openDatabase(":memory:"); migrate(db);
 const config = readAuthConfig({ NODE_ENV: "development", APP_ORIGIN: "http://127.0.0.1", TELEGRAM_BOT_TOKEN: "browser-test" });
-const server = createApp(db, config).listen(0, "127.0.0.1"); await once(server, "listening");
+const server = createApp(db, config, async () => { throw new Error("AI offline in browser test"); }).listen(0, "127.0.0.1"); await once(server, "listening");
 config.origin = `http://127.0.0.1:${server.address().port}`;
 const profile = await mkdtemp(join(tmpdir(), "planner-browser-"));
 const artifacts = resolve(".checks.local"); await mkdir(artifacts, { recursive: true });
@@ -56,8 +56,11 @@ try {
     throw new Error(`Timed out: ${expression}\n${await evaluate("document.body.innerText")}`);
   }
   async function click(text) {
-    const expression = `[...document.querySelectorAll('button')].find(b => b.textContent.trim() === ${JSON.stringify(text)} && !b.disabled)`;
-    await wait(`Boolean(${expression})`); await evaluate(`${expression}.click()`);
+    const expression = `[...document.querySelectorAll('button')].find(b => (b.textContent.trim() === ${JSON.stringify(text)} || b.getAttribute('aria-label') === ${JSON.stringify(text)}) && !b.disabled)`;
+    await wait(`Boolean(${expression})`);
+    const point = await evaluate(`(() => {const b=${expression}; b.scrollIntoView({block:'nearest'}); const r=b.getBoundingClientRect(); return {x:r.x+r.width/2,y:r.y+r.height/2};})()`);
+    await cdp("Input.dispatchMouseEvent", { type: "mousePressed", ...point, button: "left", clickCount: 1 });
+    await cdp("Input.dispatchMouseEvent", { type: "mouseReleased", ...point, button: "left", clickCount: 1 });
   }
   async function input(id, value) {
     await evaluate(`(() => { const e=document.getElementById(${JSON.stringify(id)}); Object.getOwnPropertyDescriptor(e.tagName==='TEXTAREA'?HTMLTextAreaElement.prototype:HTMLInputElement.prototype,'value').set.call(e,${JSON.stringify(value)}); e.dispatchEvent(new Event('input',{bubbles:true})); })()`);
@@ -92,8 +95,8 @@ try {
   await evaluate("Telegram.WebApp.viewportStableHeight=600; window.__events.viewportChanged()");
   assert.equal(await evaluate("getComputedStyle(document.getElementById('root')).minHeight"), "600px");
   await evaluate("document.documentElement.style.removeProperty('--tg-safe-area-inset-top'); document.documentElement.style.removeProperty('--tg-content-safe-area-inset-top'); Telegram.WebApp.viewportStableHeight=780; window.__events.viewportChanged()");
-  assert.equal(await evaluate("getComputedStyle(document.querySelector('.home-sections')).gap"), "10px");
-  assert.equal(await evaluate("getComputedStyle(document.querySelector('.home-sections')).padding"), "10px");
+  assert.equal(await evaluate("document.querySelectorAll('.home-sections button').length"), 4);
+  assert.equal(await evaluate("getComputedStyle(document.querySelector('.home-sections')).gridTemplateColumns.split(' ').length"), 2);
   for (const width of [320, 375, 430]) {
     await cdp("Emulation.setDeviceMetricsOverride", { width, height: 812, deviceScaleFactor: 1, mobile: true });
     for (const dark of [false, true]) {
@@ -102,16 +105,23 @@ try {
       await screenshot(`home-${width}-${dark ? "dark" : "light"}.png`);
     }
   }
-  await click("Список покупок"); await wait("Boolean(document.querySelector('.shopping-screen'))");
+  await click("Продукты"); await wait("Boolean(document.querySelector('.shopping-screen'))");
   await wait("window.__backVisible === true");
-  await click("Добавить покупку");
-  await input("purchase-title", "Молоко"); await input("purchase-quantity", "2 л"); await input("purchase-note", "Без лактозы");
+  await wait("Boolean(document.getElementById('purchase-add-title'))");
+  await input("purchase-add-title", "Молоко");
   await cdp("Emulation.setDeviceMetricsOverride", { width: 320, height: 812, deviceScaleFactor: 1, mobile: true });
   assert.ok(await evaluate("document.documentElement.scrollWidth <= window.innerWidth"), "Form fits 320px");
   await screenshot("shopping-form-320.png");
-  await click("Сохранить"); await wait("document.querySelectorAll('.shopping-items > li').length===1");
-  await click("Изменить"); await input("purchase-title", "Кефир"); await click("Сохранить");
-  await wait("document.querySelector('.shopping-items').textContent.includes('Кефир')");
+  await click("Добавить"); await wait("document.querySelectorAll('.shopping-items > li').length===1");
+  const rowGeometry = "JSON.stringify({row:document.querySelector('.shopping-items > li').getBoundingClientRect().toJSON(),input:document.querySelector('.purchase-title').getBoundingClientRect().toJSON(),scroll:window.scrollY})";
+  const beforeEdit = await evaluate(rowGeometry);
+  await evaluate("void (window.__purchaseField=document.querySelector('.purchase-title'))");
+  await click("Редактировать: Молоко");
+  await wait("Boolean(document.querySelector('.purchase-edit-row button[aria-label=\"Сохранить\"]'))");
+  assert.equal(await evaluate(rowGeometry), beforeEdit, "Editing preserves row/input geometry and scroll position");
+  assert.ok(await evaluate("window.__purchaseField===document.getElementById('purchase-title')"), "Editing reuses the same input element");
+  await input("purchase-title", "Кефир"); await click("Сохранить");
+  await wait("document.querySelector('.purchase-title')?.value==='Кефир' && document.querySelector('.purchase-title').readOnly");
   await evaluate("document.querySelector('.purchase-check input').click()");
   await wait("document.querySelectorAll('.shopping-items > li').length===0");
   await click("Показать все"); await wait("document.querySelectorAll('.shopping-items > li').length===1");
@@ -144,21 +154,42 @@ try {
   await evaluate("document.querySelector('dialog .danger').click()");
   await wait("document.querySelector('.shopping-screen')?.textContent.includes('История пока пуста')");
   await evaluate("window.__back()"); await wait("location.hash==='#/shopping'");
-  await click("Добавить покупку"); await input("purchase-title", "Не потерять черновик");
+  await wait("Boolean(document.getElementById('purchase-add-title'))"); await input("purchase-add-title", "Не потерять черновик");
   await evaluate(`(async () => {
     const {list}=await (await fetch('/api/shopping-lists/current')).json();
     await fetch('/api/shopping-lists/current/close',{method:'POST',headers:{'Content-Type':'application/json','X-Family-Planner':'1'},body:JSON.stringify({listId:list.id})});
     window.dispatchEvent(new Event('focus'));
   })()`);
   await wait("document.body.textContent.includes('Другой участник закрыл список')");
-  assert.equal(await evaluate("document.getElementById('purchase-title').value"), "Не потерять черновик");
-  await click("Добавить в новый список"); await click("Сохранить");
-  await wait("document.querySelector('.shopping-items')?.textContent.includes('Не потерять черновик')");
-  await click("Удалить"); await wait("Boolean(document.querySelector('dialog[open]'))");
-  await evaluate("document.querySelector('dialog .danger').click()");
+  assert.equal(await evaluate("document.getElementById('purchase-add-title').value"), "Не потерять черновик");
+  await click("Добавить в новый список"); await click("Добавить");
+  await wait("document.querySelector('.purchase-title')?.value==='Не потерять черновик'");
+  await click("Удалить: Не потерять черновик");
   await wait("!document.querySelector('dialog[open]') && document.querySelectorAll('.shopping-items > li').length===0");
   await evaluate("window.__back()"); await wait("Boolean(document.querySelector('.home-sections'))");
   assert.equal(await evaluate("window.__backVisible"), false);
+  await click("Покупки"); await wait("Boolean(document.querySelector('.purchases-screen #purchase-add-title'))");
+  assert.ok(await evaluate("![...document.querySelectorAll('.shopping-screen button')].some(b=>['История','Закрыть список'].includes(b.textContent.trim()))"));
+  await input("purchase-add-title", "Лампа"); await click("Добавить");
+  await wait("document.querySelector('.purchase-title')?.value==='Лампа'");
+  await click("Редактировать: Лампа"); await input("purchase-title", "Настольная лампа"); await click("Сохранить");
+  await wait("document.querySelector('.purchase-title')?.value==='Настольная лампа' && document.querySelector('.purchase-title').readOnly");
+  await evaluate("document.querySelector('.purchase-check input').click()");
+  await wait("document.querySelectorAll('.shopping-items > li').length===0");
+  await click("Показать все"); await wait("document.querySelectorAll('.shopping-items > li').length===1");
+  for (const width of [320,375,430]) {
+    await cdp("Emulation.setDeviceMetricsOverride", { width, height: 812, deviceScaleFactor: 1, mobile: true });
+    for (const dark of [false,true]) {
+      await evaluate(`window.__theme(${dark})`);
+      assert.ok(await evaluate("document.documentElement.scrollWidth <= window.innerWidth"));
+      await screenshot(`purchases-${width}-${dark ? 'dark' : 'light'}.png`);
+    }
+  }
+  await evaluate("window.__back()"); await wait("Boolean(document.querySelector('.home-sections'))");
+  await click("Покупки"); await wait("Boolean(document.querySelector('.purchases-screen #purchase-add-title'))");
+  assert.equal(await evaluate("document.querySelectorAll('.shopping-items > li').length"), 0, "Bought hidden on re-entry");
+  await click("Показать все"); await click("Удалить: Настольная лампа");
+  await wait("document.querySelectorAll('.shopping-items > li').length===0");
   assert.deepEqual(errors, []);
   console.log("PASS: mobile widths/themes, Telegram back, purchases CRUD, close, readonly history, delete; screenshots: .checks.local");
 } finally {

@@ -4,6 +4,8 @@ import { createAuth, sessionFrom } from "./auth/routes.js";
 import type { AuthConfig } from "./auth/config.js";
 import { createFamilyRouter, findFamily, FamilyError } from "./family.js";
 import { createShoppingRouter } from "./shopping.js";
+import type { Classifier } from "./shopping-ai.js";
+import { createPurchasesRouter } from "./purchases.js";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 
@@ -19,7 +21,7 @@ type TaskRow = {
   completed: number;
 };
 
-export function createApp(database: Database.Database, config: AuthConfig) {
+export function createApp(database: Database.Database, config: AuthConfig, shoppingClassifier?: Classifier) {
 const app = express();
 app.disable("x-powered-by");
 app.set("trust proxy", config.trustedProxies.length ? config.trustedProxies : false);
@@ -62,7 +64,8 @@ app.get("/api/me", (_request, response) => {
   }, authMethod: method, family: findFamily(database, user.id) });
 });
 app.use("/api", createFamilyRouter(database, config));
-app.use("/api", createShoppingRouter(database));
+app.use("/api", createShoppingRouter(database, shoppingClassifier));
+app.use("/api", createPurchasesRouter(database));
 
 app.get("/api/tasks", (_request, response) => {
   const rows = database

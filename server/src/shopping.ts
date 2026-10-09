@@ -4,6 +4,7 @@ import type Database from "better-sqlite3";
 import { z } from "zod";
 import { sessionFrom } from "./auth/routes.js";
 import { FamilyError, findFamily } from "./family.js";
+import { classificationSchema, classifyShopping, type Classifier } from "./shopping-ai.js";
 
 const idSchema = z.string().uuid();
 const optionalText = (max: number) => z.string().trim().max(max).nullable().transform(value => value || null);
@@ -25,8 +26,9 @@ const listSelect = `SELECT l.id, l.created_at AS createdAt, l.closed_at AS close
   (SELECT count(*) FROM shopping_items i WHERE i.list_id=l.id AND i.family_id=l.family_id) AS itemCount
   FROM shopping_lists l LEFT JOIN users u ON u.id=l.closed_by_user_id`;
 
-export function createShoppingRouter(db: Database.Database) {
+export function createShoppingRouter(db: Database.Database, classify: Classifier = classifyShopping) {
   const router = Router();
+  const additions = new Map<string, Promise<void>>();
   const atomic = (handler: RequestHandler): RequestHandler => (request, response, next) => {
     db.transaction(() => handler(request, response, next)).immediate();
   };
@@ -48,7 +50,7 @@ export function createShoppingRouter(db: Database.Database) {
   }
   function details(family: string, target: List) {
     const items = db.prepare(`SELECT id,title,quantity,note,bought,created_at AS createdAt FROM shopping_items
-      WHERE family_id=? AND list_id=? ORDER BY bought,created_at,id`).all(family, target.id) as Item[];
+      WHERE family_id=? AND list_id=? ORDER BY sort_position,rowid`).all(family, target.id) as Item[];
     return { list: target, items: items.map(item => ({ ...item, bought: Boolean(item.bought) })) };
   }
   function itemList(family: string, id: string) {
@@ -70,16 +72,48 @@ export function createShoppingRouter(db: Database.Database) {
     const family = familyId(sessionFrom(response).user.id);
     response.json(details(family, list(family, parse(idSchema, request.params.id))));
   });
-  router.post("/shopping-lists/current/items", atomic((request, response) => {
+  router.post("/shopping-lists/current/items", async (request, response) => {
     const user = sessionFrom(response).user.id;
     const family = familyId(user);
     const body = parse(createSchema, request.body);
     editable(family, body.listId);
-    const id = randomUUID();
-    db.prepare("INSERT INTO shopping_items (id,family_id,list_id,title,quantity,note,created_by_user_id) VALUES (?,?,?,?,?,?,?)")
-      .run(id, family, body.listId, body.title, body.quantity ?? null, body.note ?? null, user);
-    response.status(201).json({ id });
-  }));
+    const previous = additions.get(body.listId) || Promise.resolve();
+    const work = previous.catch(() => {}).then(async () => {
+      editable(family, body.listId);
+      const existing = db.prepare("SELECT id,title,category_rank FROM shopping_items WHERE family_id=? AND list_id=? ORDER BY sort_position,rowid")
+        .all(family, body.listId) as { id: string; title: string; category_rank: number | null }[];
+      const id = randomUUID();
+      const inputs = [...existing.filter(item => item.category_rank === null).map(({ id, title }) => ({ id, title })), { id, title: body.title }];
+      let classified: ReturnType<typeof classificationSchema.parse> | null = null;
+      if (existing.length) {
+        try {
+          classified = classificationSchema.parse({ items: await classify(inputs) });
+          const ids = new Set(classified.items.map(item => item.id));
+          if (ids.size !== inputs.length || classified.items.length !== inputs.length || inputs.some(item => !ids.has(item.id))) throw new Error("Invalid classification IDs");
+        } catch { classified = null; }
+      }
+      db.transaction(() => {
+        // AI runs outside the transaction: recheck membership and list after awaiting it.
+        if (familyId(user) !== family) throw new FamilyError(403, "Семья изменилась. Обновите список.");
+        editable(family, body.listId);
+        const position = (db.prepare("SELECT COALESCE(MAX(sort_position),0)+1 AS n FROM shopping_items WHERE family_id=? AND list_id=?").get(family, body.listId) as { n: number }).n;
+        db.prepare("INSERT INTO shopping_items (id,family_id,list_id,title,quantity,note,created_by_user_id,sort_position) VALUES (?,?,?,?,?,?,?,?)")
+          .run(id, family, body.listId, body.title, body.quantity ?? null, body.note ?? null, user, position);
+        if (classified) {
+          for (const result of classified.items) {
+            const source = inputs.find(item => item.id === result.id)!;
+            db.prepare("UPDATE shopping_items SET category_rank=? WHERE family_id=? AND list_id=? AND id=? AND title=?")
+              .run(result.category, family, body.listId, result.id, source.title);
+          }
+          const sorted = db.prepare("SELECT id FROM shopping_items WHERE family_id=? AND list_id=? ORDER BY COALESCE(category_rank,14),sort_position,rowid").all(family, body.listId) as { id: string }[];
+          sorted.forEach((item, index) => db.prepare("UPDATE shopping_items SET sort_position=? WHERE family_id=? AND id=?").run(index + 1, family, item.id));
+        }
+      }).immediate();
+      response.status(201).json({ id, sorting: !existing.length ? "skipped" : classified ? "applied" : "unavailable" });
+    });
+    additions.set(body.listId, work);
+    try { await work; } finally { if (additions.get(body.listId) === work) additions.delete(body.listId); }
+  });
   router.patch("/shopping-items/:id", atomic((request, response) => {
     const family = familyId(sessionFrom(response).user.id);
     const id = parse(idSchema, request.params.id);
@@ -91,6 +125,7 @@ export function createShoppingRouter(db: Database.Database) {
     const values = supplied.map(key => key === "bought" ? Number(body[key]) : body[key] as string | null);
     db.prepare(`UPDATE shopping_items SET ${supplied.map(key => `${key}=?`).join(",")},updated_at=unixepoch() WHERE family_id=? AND id=?`)
       .run(...values, family, id);
+    if (body.title !== undefined) db.prepare("UPDATE shopping_items SET category_rank=NULL WHERE family_id=? AND id=?").run(family, id);
     response.status(204).end();
   }));
   router.delete("/shopping-items/:id", atomic((request, response) => {
