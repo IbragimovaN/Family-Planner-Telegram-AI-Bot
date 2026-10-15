@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef, useState, type FormEvent } from "react";
-import App from "./App";
+import Tasks from "./Tasks";
+import PastelSelect from "./components/PastelSelect";
 import WriteAccess from "./WriteAccess";
 import { apiRequest } from "./api/http";
 import { navigate, useNavigation, useTelegramBack, type Route } from "./navigation";
@@ -162,7 +163,7 @@ export default function FamilyGate({ user, dev, onLogout, logoutBusy, authMessag
   if (loading) return <main className="app"><Loading>Загружаем семью…</Loading></main>;
   const isHome = Boolean(family && !inviteScreen && view === "home");
   const isFamily = Boolean(family && !inviteScreen && view === "family");
-  const isFunctional = Boolean(family && !inviteScreen && (view === "tasks" || view === "purchases" || view.startsWith("shopping")));
+  const isFunctional = Boolean(family && !inviteScreen && (view.startsWith("tasks") || view === "purchases" || view.startsWith("shopping")));
   const activeInvitations = invitations.filter(link => !link.revokedAt && link.expiresAt * 1000 > clock);
   const memberWord = new Intl.PluralRules("ru").select(members.length);
   return <div className={isHome ? "home-shell" : isFamily || isFunctional ? "functional-shell" : undefined}>
@@ -193,8 +194,7 @@ export default function FamilyGate({ user, dev, onLogout, logoutBusy, authMessag
               <label htmlFor="settings-name">Название</label>
               <input id="settings-name" name="name" defaultValue={family.name} maxLength={100} required disabled={busy} />
               <label htmlFor="settings-timezone">Часовой пояс</label>
-              <input id="settings-timezone" name="timezone" defaultValue={family.timezone} list="timezones" required disabled={busy} />
-              <datalist id="timezones">{["Europe/Moscow", "Europe/Kaliningrad", "Europe/Samara", "Asia/Yekaterinburg", "Asia/Novosibirsk", "Asia/Vladivostok", "UTC"].map(zone => <option key={zone} value={zone} />)}</datalist>
+              <PastelSelect label="Часовой пояс" id="settings-timezone" name="timezone" defaultValue={family.timezone} editable disabled={busy} options={["Europe/Moscow", "Europe/Kaliningrad", "Europe/Samara", "Asia/Yekaterinburg", "Asia/Novosibirsk", "Asia/Vladivostok", "UTC"].map(zone => ({ value: zone, label: zone }))} />
               <p className="muted">Неделя начинается в понедельник.</p>
               <button className="primary" disabled={busy}>Сохранить настройки</button>
               <button type="button" disabled={busy} onClick={() => setEditingFamily(false)}>Отмена</button>
@@ -255,7 +255,7 @@ export default function FamilyGate({ user, dev, onLogout, logoutBusy, authMessag
             </button>
           </nav>
         </>}
-        {view === "tasks" && <><button className="text-button back-button" onClick={() => setView("home")}>← На главную</button><App /></>}
+        {view.startsWith("tasks") && <Tasks key={`${family.id}:${view}`} userId={user.id} members={members} timezone={family.timezone} fromHome={view === "tasks/new"} onBack={() => setView("home")} />}
         {(view.startsWith("shopping") || view === "purchases") && <Shopping key={`${family.id}:${view}`} route={view} timezone={family.timezone} back={back} />}
         {view === "family" && <>
           <div className="family-section-heading"><h2>Участники</h2><span className="family-count">{members.length} {memberWord === "one" ? "участник" : memberWord === "few" ? "участника" : "участников"}</span></div>

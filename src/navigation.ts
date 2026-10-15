@@ -1,9 +1,9 @@
 import { useCallback, useEffect, useSyncExternalStore } from "react";
 
-export type Route = "home" | "family" | "tasks" | "purchases" | "shopping" | "shopping/history" | `shopping/history/${string}`;
+export type Route = "home" | "family" | "tasks" | "tasks/new" | "purchases" | "shopping" | "shopping/history" | `shopping/history/${string}`;
 function snapshot(): Route {
   const path = window.location.hash.slice(2);
-  return /^(family|tasks|purchases|shopping|shopping\/history(?:\/[a-zA-Z0-9-]+)?)$/.test(path) ? path as Route : "home";
+  return /^(family|tasks(?:\/new)?|purchases|shopping|shopping\/history(?:\/[a-zA-Z0-9-]+)?)$/.test(path) ? path as Route : "home";
 }
 function subscribe(listener: () => void) {
   window.addEventListener("popstate", listener);

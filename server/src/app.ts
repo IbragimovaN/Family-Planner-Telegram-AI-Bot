@@ -5,6 +5,8 @@ import type { AuthConfig } from "./auth/config.js";
 import { createFamilyRouter, findFamily, FamilyError } from "./family.js";
 import { createShoppingRouter } from "./shopping.js";
 import type { Classifier } from "./shopping-ai.js";
+import { createTasksRouter } from "./tasks.js";
+import type { TaskParser } from "./task-input.js";
 import { createPurchasesRouter } from "./purchases.js";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -21,7 +23,7 @@ type TaskRow = {
   completed: number;
 };
 
-export function createApp(database: Database.Database, config: AuthConfig, shoppingClassifier?: Classifier) {
+export function createApp(database: Database.Database, config: AuthConfig, shoppingClassifier?: Classifier, taskParser?: TaskParser, now?: () => number) {
 const app = express();
 app.disable("x-powered-by");
 app.set("trust proxy", config.trustedProxies.length ? config.trustedProxies : false);
@@ -66,8 +68,9 @@ app.get("/api/me", (_request, response) => {
 app.use("/api", createFamilyRouter(database, config));
 app.use("/api", createShoppingRouter(database, shoppingClassifier));
 app.use("/api", createPurchasesRouter(database));
+app.use("/api", createTasksRouter(database, taskParser, now));
 
-app.get("/api/tasks", (_request, response) => {
+app.get("/api/prototype-tasks", (_request, response) => {
   const rows = database
     .prepare(
       `
@@ -82,7 +85,7 @@ app.get("/api/tasks", (_request, response) => {
   response.json(rows.map(convertTaskRow));
 });
 
-app.post("/api/tasks", (request, response) => {
+app.post("/api/prototype-tasks", (request, response) => {
   const { title } = (request.body || {}) as {
     title?: unknown;
   };
@@ -113,7 +116,7 @@ app.post("/api/tasks", (request, response) => {
   response.status(201).json(newTask);
 });
 
-app.patch("/api/tasks/:id/toggle", (request, response) => {
+app.patch("/api/prototype-tasks/:id/toggle", (request, response) => {
   const row = database
     .prepare(
       `
