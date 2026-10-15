@@ -59,8 +59,8 @@ test("Telegram validation checks raw signed fields including signature, freshnes
 
 test("all protected APIs reject anonymous access; invalid logins never create users", async (t) => {
   const { db, request } = await fixture(t);
-  for (const path of ["/api/me", "/api/tasks", "/api/future-route"]) assert.equal((await request(path)).status, 401);
-  for (const path of ["/api/tasks", "/api/ai/tasks", "/api/auth/logout"]) assert.equal((await request(path, { body: {} })).status, 401);
+  for (const path of ["/api/me", "/api/prototype-tasks", "/api/future-route"]) assert.equal((await request(path)).status, 401);
+  for (const path of ["/api/prototype-tasks", "/api/ai/tasks", "/api/auth/logout"]) assert.equal((await request(path, { body: {} })).status, 401);
   assert.equal((await request("/api/health")).status, 200);
   assert.equal((await request("/api/auth/telegram", { body: { initData: "forged" } })).status, 401);
   assert.equal((await request("/api/auth/telegram", { body: { initData: signed(undefined, { auth_date: String(now() - 301) }) } })).status, 401);
@@ -122,8 +122,8 @@ test("only explicitly trusted proxy addresses separate client login limits", asy
 test("mutations reject wrong origin and missing header without changing data", async (t) => {
   const { db, request, login } = await fixture(t);
   const { cookie } = await login();
-  assert.equal((await request("/api/tasks", { cookie, body: { title: "blocked" }, headers: { Origin: "https://evil.example" } })).status, 403);
-  assert.equal((await request("/api/tasks", { cookie, body: { title: "blocked" }, headers: { "X-Family-Planner": "" } })).status, 403);
+  assert.equal((await request("/api/prototype-tasks", { cookie, body: { title: "blocked" }, headers: { Origin: "https://evil.example" } })).status, 403);
+  assert.equal((await request("/api/prototype-tasks", { cookie, body: { title: "blocked" }, headers: { "X-Family-Planner": "" } })).status, 403);
   assert.equal(db.prepare("SELECT count(*) AS count FROM prototype_tasks").get().count, 0);
 });
 
@@ -132,13 +132,13 @@ test("prototype tasks belong to authenticated user, including ID-based updates",
   db.exec("INSERT INTO prototype_tasks (id,title) VALUES ('unowned','Previous prototype record')");
   const a = await login({ id: 1, first_name: "A" });
   const b = await login({ id: 2, first_name: "B" });
-  const created = await request("/api/tasks", { cookie: a.cookie, body: { title: "Private", owner_user_id: "other" } });
+  const created = await request("/api/prototype-tasks", { cookie: a.cookie, body: { title: "Private", owner_user_id: "other" } });
   assert.equal(created.status, 201);
   const task = await created.json();
-  assert.deepEqual(await (await request("/api/tasks", { cookie: a.cookie })).json(), [task]);
-  assert.deepEqual(await (await request("/api/tasks", { cookie: b.cookie })).json(), []);
-  assert.equal((await request(`/api/tasks/${task.id}/toggle`, { cookie: b.cookie, method: "PATCH", body: {} })).status, 404);
-  assert.equal((await request(`/api/tasks/${task.id}/toggle`, { cookie: a.cookie, method: "PATCH", body: {} })).status, 200);
+  assert.deepEqual(await (await request("/api/prototype-tasks", { cookie: a.cookie })).json(), [task]);
+  assert.deepEqual(await (await request("/api/prototype-tasks", { cookie: b.cookie })).json(), []);
+  assert.equal((await request(`/api/prototype-tasks/${task.id}/toggle`, { cookie: b.cookie, method: "PATCH", body: {} })).status, 404);
+  assert.equal((await request(`/api/prototype-tasks/${task.id}/toggle`, { cookie: a.cookie, method: "PATCH", body: {} })).status, 200);
 });
 
 test("dev login is explicit, local, cannot impersonate a user and is forbidden in production", async (t) => {

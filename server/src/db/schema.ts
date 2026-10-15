@@ -195,4 +195,13 @@ CREATE TABLE purchases (
 ) STRICT;
 CREATE INDEX purchases_family ON purchases(family_id,created_at);
 `,
+}, {
+  version: 5,
+  name: "task_legacy_import_tracking",
+  sql: `
+CREATE TABLE task_legacy_imports (
+  prototype_id TEXT PRIMARY KEY,
+  task_id TEXT NOT NULL UNIQUE
+) STRICT;
+`,
 }];

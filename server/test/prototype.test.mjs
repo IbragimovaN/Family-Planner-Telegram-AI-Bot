@@ -52,17 +52,17 @@ test("prototype API uses fresh storage and retains tasks after process restart",
     const login = await fetch(`${base}/api/auth/dev`, { method: "POST", headers, body: "{}" });
     assert.equal(login.status, 204);
     cookie = login.headers.get("set-cookie").split(";")[0];
-    assert.deepEqual(await (await fetch(`${base}/api/tasks`, { headers: { Cookie: cookie } })).json(), []);
-    const created = await fetch(`${base}/api/tasks`, {
+    assert.deepEqual(await (await fetch(`${base}/api/prototype-tasks`, { headers: { Cookie: cookie } })).json(), []);
+    const created = await fetch(`${base}/api/prototype-tasks`, {
       method: "POST", headers: { ...headers, Cookie: cookie }, body: JSON.stringify({ title: "Test task" }),
     });
     assert.equal(created.status, 201);
     const task = await created.json();
-    const toggled = await fetch(`${base}/api/tasks/${task.id}/toggle`, { method: "PATCH", headers: { ...headers, Cookie: cookie }, body: "{}" });
+    const toggled = await fetch(`${base}/api/prototype-tasks/${task.id}/toggle`, { method: "PATCH", headers: { ...headers, Cookie: cookie }, body: "{}" });
     assert.equal((await toggled.json()).completed, true);
     await stop();
     await start();
-    assert.deepEqual(await (await fetch(`${base}/api/tasks`, { headers: { Cookie: cookie } })).json(), [{ ...task, completed: true }]);
+    assert.deepEqual(await (await fetch(`${base}/api/prototype-tasks`, { headers: { Cookie: cookie } })).json(), [{ ...task, completed: true }]);
     const read = openDatabase(databasePath, true);
     try { assert.equal(read.prepare("SELECT count(*) AS count FROM tasks").get().count, 0); }
     finally { read.close(); }
