@@ -86,7 +86,7 @@ test("concurrent closing creates one replacement; history retains all items and 
 test("shopping rejects anonymous, family-less, foreign and removed members across all routes", async t => {
   const f = await fixture(t); const item = await f.add(); const list = f.initial.list.id;
   const routes = [["/shopping-lists/current", "GET"], ["/shopping-lists/history", "GET"], [`/shopping-lists/${list}`, "GET"],
-    ["/shopping-lists/current/items", "POST", { listId: list, title: "Hack" }], [`/shopping-items/${item}`, "PATCH", { bought: true }],
+    ["/shopping-lists/current/sort", "POST", { listId: list }], ["/shopping-lists/current/items", "POST", { listId: list, title: "Hack" }], [`/shopping-items/${item}`, "PATCH", { bought: true }],
     [`/shopping-items/${item}`, "DELETE", {}], ["/shopping-lists/current/close", "POST", { listId: list }], [`/shopping-lists/${list}`, "DELETE", {}]];
   for (const [path, method, body] of routes) {
     assert.equal((await f.request(null, path, method, body)).status, 401);
@@ -108,67 +108,91 @@ test("failed replacement rolls back closing and retains all purchases", async t 
   assert.equal((await (await f.request(f.owner, "/shopping-lists/history")).json()).lists.length, 0);
 });
 
-test("first item skips AI; later additions group categories and toggling never moves rows", async t => {
+async function sort(f, cookie = f.owner) {
+  return f.request(cookie, "/shopping-lists/current/sort", "POST", { listId: f.initial.list.id });
+}
+
+test("additions append immediately without AI; one explicit sort groups pending categories", async t => {
   const calls = [];
-  const categories = { "Молоко": 5, "Шампунь": 0, "Корм": 1, "Огурцы": 2, "Курица": 3, "Яйца": 4, "Тунец": 6, "Макароны": 7, "Соль": 8, "Хлеб": 9, "Вода": 10, "Шоколад": 11, "Чипсы": 12, "Творог": 5 };
-  const f = await fixture(t, async items => { calls.push(items); return items.map(item => ({ id: item.id, category: categories[item.title] })); });
-  const milk = await f.add(f.owner, { title: "Молоко" }); assert.equal(calls.length, 0);
-  for (const title of ["Чипсы", "Шоколад", "Вода", "Хлеб", "Соль", "Макароны", "Тунец", "Яйца", "Курица", "Огурцы", "Корм", "Шампунь", "Творог"]) await f.add(f.member, { title });
-  assert.deepEqual(calls[0].map(i => i.title), ["Молоко", "Чипсы"]);
-  assert.ok(calls.slice(1).every(items => items.length === 1));
-  const before = (await f.current()).items;
-  assert.deepEqual(before.map(i => i.title), ["Шампунь", "Корм", "Огурцы", "Курица", "Яйца", "Молоко", "Творог", "Тунец", "Макароны", "Соль", "Хлеб", "Вода", "Шоколад", "Чипсы"]);
-  const count = calls.length;
+  const categories = { "Milk": 5, "Soap": 0, "Bread": 9, "Yogurt": 5 };
+  const f = await fixture(t, async items => { calls.push(items); return items.map(i => ({ id: i.id, category: categories[i.title] })); });
+  assert.equal((await (await sort(f)).json()).sorting, "skipped");
+  const milk = await f.add(f.owner, {title:"Milk"});
+  assert.equal((await f.current()).sortingRevision, null);
+  await f.add(f.member, {title:"Bread"}); await f.add(f.owner, {title:"Soap"});
+  assert.equal(calls.length, 0);
+  assert.deepEqual((await f.current()).items.map(i => i.title), ["Milk", "Bread", "Soap"]);
+  assert.ok((await f.current()).sortingRevision);
+  assert.equal((await (await sort(f)).json()).sorting, "applied");
+  assert.equal(calls.length, 1); assert.equal(calls[0].length, 3);
+  assert.deepEqual((await f.current()).items.map(i => i.title), ["Soap", "Milk", "Bread"]);
+  assert.equal((await f.current()).sortingRevision, null);
+  assert.equal((await (await sort(f)).json()).sorting, "skipped");
+  await f.add(f.owner, {title:"Yogurt"});
+  assert.deepEqual((await f.current()).items.map(i => i.title), ["Soap", "Milk", "Bread", "Yogurt"]);
+  await sort(f); assert.deepEqual(calls[1].map(i => i.title), ["Yogurt"]);
+  const ids = (await f.current()).items.map(i => i.id);
   for (const bought of [true, false]) {
     await f.request(f.member, `/shopping-items/${milk}`, "PATCH", { bought });
-    assert.deepEqual((await f.current()).items.map(i => i.id), before.map(i => i.id));
+    assert.deepEqual((await f.current()).items.map(i => i.id), ids);
   }
-  await f.request(f.owner, `/shopping-items/${milk}`, "PATCH", { title: "Кефир" });
-  assert.deepEqual((await f.current()).items.map(i => i.id), before.map(i => i.id));
-  assert.equal(calls.length, count);
-  await f.request(f.owner, "/shopping-lists/current/close", "POST", { listId: f.initial.list.id });
-  const archive = await (await f.request(f.owner, `/shopping-lists/${f.initial.list.id}`)).json();
-  assert.deepEqual(archive.items.map(i => i.id), before.map(i => i.id));
+  await f.request(f.owner, `/shopping-items/${milk}`, "PATCH", {title:"Soap"});
+  assert.ok((await f.current()).sortingRevision);
+  assert.equal(calls.length, 2);
 });
 
-test("AI failure or invalid IDs append without losing items; a later addition retries unknown categories", async t => {
+test("AI failure and invalid answers retain insertion order and all data", async t => {
   let attempt = 0;
   const f = await fixture(t, async items => {
     attempt++;
     if (attempt === 1) throw new Error("offline");
-    if (attempt === 2) return items.map(() => ({ id: "foreign-id", category: 0 }));
-    if (attempt === 3) return items.map(i => ({ id: i.id, category: 99 }));
-    return items.map(i => ({ id: i.id, category: i.title === "Шампунь" ? 0 : 5 }));
+    if (attempt === 2) return items.map(() => ({id:"foreign",category:0}));
+    if (attempt === 3) return items.map(i => ({id:i.id,category:99}));
+    return items.map(i => ({id:i.id,category:i.title === "Soap" ? 0 : 5}));
   });
-  for (const title of ["Молоко", "Шампунь", "Кефир", "Творог"]) await f.add(f.owner, { title });
-  assert.deepEqual((await f.current()).items.map(i => i.title), ["Молоко", "Шампунь", "Кефир", "Творог"]);
-  await f.add(f.owner, { title: "Йогурт" });
-  assert.deepEqual((await f.current()).items.map(i => i.title), ["Шампунь", "Молоко", "Кефир", "Творог", "Йогурт"]);
+  await f.add(f.owner,{title:"Milk"}); await f.add(f.owner,{title:"Soap"});
+  for(let i=0;i<3;i++) {
+    assert.equal((await (await sort(f)).json()).sorting,"unavailable");
+    assert.deepEqual((await f.current()).items.map(i=>i.title),["Milk","Soap"]);
+  }
+  assert.equal((await (await sort(f)).json()).sorting,"applied");
+  assert.deepEqual((await f.current()).items.map(i=>i.title),["Soap","Milk"]);
 });
 
-test("concurrent additions are classified against the latest list and keep both products", async t => {
-  const calls = [];
-  const f = await fixture(t, async items => { calls.push(items); return items.map(i => ({ id: i.id, category: i.title === "Шампунь" ? 0 : 5 })); });
-  const results = await Promise.all([f.add(f.owner, { title: "Молоко" }), f.add(f.member, { title: "Шампунь" })]);
-  assert.equal(new Set(results).size, 2); assert.equal(calls.length, 1); assert.equal(calls[0].length, 2);
-  assert.deepEqual((await f.current()).items.map(i => i.title), ["Шампунь", "Молоко"]);
+test("slow sorting never blocks additions; concurrent sort is deduplicated and stale answers are discarded", async t => {
+  let release, started, calls=0;
+  const waiting = new Promise(resolve => { started=resolve; });
+  const answer = new Promise(resolve => { release=resolve; });
+  const f = await fixture(t, async items => {calls++; started(); await answer; return items.map(i=>({id:i.id,category:0}));});
+  await f.add(); await f.add(f.member,{title:"Bread"});
+  const pending=sort(f); await waiting;
+  assert.equal((await (await sort(f,f.member)).json()).sorting,"deferred");
+  await f.add(f.member,{title:"New item"});
+  assert.equal((await f.current()).items.length,3);
+  release(); assert.equal((await (await pending).json()).sorting,"deferred");
+  assert.equal(calls,1);
+  assert.equal(f.db.prepare("SELECT count(*) AS n FROM shopping_items WHERE category_rank IS NOT NULL").get().n,0);
 });
 
-test("closing a list during AI classification prevents a late insertion", async t => {
-  let release, started;
-  const waiting = new Promise(resolve => { started = resolve; });
-  const answer = new Promise(resolve => { release = resolve; });
-  const f = await fixture(t, async items => { started(); await answer; return items.map(i => ({ id: i.id, category: 5 })); });
-  await f.add();
-  const pending = f.request(f.member, "/shopping-lists/current/items", "POST", { listId: f.initial.list.id, title: "Кефир" });
-  await waiting;
-  await f.request(f.owner, "/shopping-lists/current/close", "POST", { listId: f.initial.list.id });
-  release(); assert.equal((await pending).status, 409);
-  assert.equal((await f.current()).items.length, 0);
-  const archive = await (await f.request(f.owner, `/shopping-lists/${f.initial.list.id}`)).json();
-  assert.equal(archive.items.length, 1);
+for(const change of ["rename","delete","close","remove member"]) test(`sorting rechecks ${change} after AI completes`,async t=>{
+  let release,started;
+  const waiting=new Promise(resolve=>{started=resolve;});
+  const answer=new Promise(resolve=>{release=resolve;});
+  const f=await fixture(t,async items=>{started(); await answer; return items.map(i=>({id:i.id,category:0}));});
+  const id=await f.add(); await f.add(f.owner,{title:"Second"});
+  const pending=sort(f,f.member); await waiting;
+  if(change==="rename") await f.request(f.owner,`/shopping-items/${id}`,"PATCH",{title:"Renamed"});
+  if(change==="delete") await f.request(f.owner,`/shopping-items/${id}`,"DELETE",{});
+  if(change==="close") await f.request(f.owner,"/shopping-lists/current/close","POST",{listId:f.initial.list.id});
+  if(change==="remove member") {
+    const people=await (await f.request(f.owner,"/family/members")).json();
+    await f.request(f.owner,`/family/members/${people.members.find(m=>m.role==='member').id}`,"DELETE",{});
+  }
+  release(); const response=await pending;
+  assert.equal(response.status,change==="close"?409:change==="remove member"?403:200);
+  if(response.status===200) assert.equal((await response.json()).sorting,"deferred");
+  assert.equal(f.db.prepare("SELECT count(*) AS n FROM shopping_items WHERE category_rank IS NOT NULL").get().n,0);
 });
-
 test("general purchases share CRUD, retain order, never call AI and stay separate from groceries", async t => {
   let aiCalls = 0;
   const f = await fixture(t, async () => { aiCalls++; return []; });
