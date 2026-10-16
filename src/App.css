@@ -243,6 +243,8 @@ label {
 .purchase-content .purchase-note { margin-top: 2px; color: var(--text); font-size: 13px; }
 .app .purchase-edit-row .icon-button { display: grid; place-items: center; width: 44px; height: 44px; padding: 0; border: 0; background: transparent; color: var(--accent); }
 .app .purchase-edit-row .icon-delete { color: var(--danger); }
+.app .purchase-edit-row .icon-button:not(.icon-delete) svg { transform: translateX(5px); }
+.app .purchase-edit-row .icon-delete svg { transform: translateX(-5px); }
 .app .purchase-edit-row .icon-button:hover:not(:disabled) { background: var(--social-bg); }
 .shopping-history button { width: 100%; display: grid; gap: 6px; text-align: left; }
 .family-screen form.purchase-edit-row { grid-column: 2 / -1; display: grid; grid-template-columns: minmax(0, 1fr) 44px 44px; align-items: center; gap: 0; margin: 0; padding: 0; }
@@ -495,7 +497,8 @@ label {
 .functional-layout.family-overview .family-settings-toggle { right: 32px; top: 70px; }
 @media (max-width: 540px) {
   .functional-shell { padding-block: 16px; }
-  .functional-shell > .family-screen.functional-layout { padding: 20px; gap: 18px; border-radius: 24px; }
+  .functional-shell > .family-screen.functional-layout { padding: 10px; gap: 18px; border-radius: 24px; }
+  .shopping-items > li { padding: 3px 0; }
   .functional-layout.family-overview .family-settings-toggle { right: 20px; top: 56px; }
 }
 /* Personal task planner: the same pastel controls with calendar-specific layout. */
@@ -543,11 +546,16 @@ label {
 .tasks-planner select { font-size: 15px; padding: 12px; }
 .tasks-planner select:focus-visible { outline: 3px solid var(--accent); outline-offset: 3px; }
 .tasks-planner .task-permissions { margin-top: -12px; font-size: 13px; }
-.task-period-panel { display: grid; gap: 16px; }
+.task-period-panel { display: grid; gap: 8px; }
 .task-periods { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); border-bottom: 1px solid var(--border); }
 .app .task-periods button { border: 0; border-bottom: 2px solid transparent; border-radius: 0; background: transparent; color: var(--text); font-size: 16px; padding: 12px 8px; }
 .app .task-periods button[aria-pressed="true"] { color: var(--accent); border-bottom-color: var(--accent); font-weight: 650; }
 .tasks-planner .task-date-navigation { width: min(100%, 360px); justify-self: center; }
+.tasks-planner .task-date-navigation,
+.tasks-planner .task-period-range,
+.tasks-planner .task-date-navigation > button,
+.tasks-planner .task-date-navigation > label { margin-block: 0; }
+.tasks-planner .task-period-panel + .task-results { margin-top: -16px; }
 .tasks-planner .task-date-navigation > button { border-color: transparent; background: transparent; color: var(--accent); }
 .family-screen .tasks-planner .task-date-picker { border-color: transparent; background: transparent; font-size: 15px; font-weight: 550; }
 .task-period-range { display: grid; place-items: center; min-height: 44px; font-size: 15px; font-weight: 550; color: var(--text-h); font-variant-numeric: tabular-nums; text-transform: capitalize; }
@@ -567,7 +575,7 @@ label {
 .task-day-empty { font-size: 13px; color: var(--text); padding-block: 8px; }
 .tasks-planner .planner-task-list { gap: 12px; }
 .app.tasks-planner .planner-task-list > li { display: flex; align-items: flex-start; gap: 8px; padding: 12px; border-radius: 16px; box-shadow: none; }
-.app.tasks-planner .planner-task-list input[type="checkbox"] { margin: 12px 4px; }
+.app.tasks-planner .planner-task-list input[type="checkbox"] { align-self: center; margin: 0 4px; }
 .app.tasks-planner .planner-task-list .task-open { padding: 8px 0; font-size: 16px; line-height: 1.5; }
 .task-card-title { display: block; color: var(--text-h); font-weight: 550; }
 .tasks-planner .task-snippet, .tasks-planner .task-card-time, .tasks-planner .task-overdue-label { margin-top: 4px; font-size: 13px; line-height: 1.5; }
@@ -651,3 +659,95 @@ label {
 .tasks-planner .task-week > section { border: 1px solid transparent; padding: 12px; border-radius: 16px; transition: background-color .15s, border-color .15s; }
 .tasks-planner .task-week.task-dragging > section { border-color: var(--border); border-style: dashed; }
 .tasks-planner .task-week > section.task-drop-active { border-color: var(--accent); background: var(--accent-bg); }
+
+.shopping-items .purchase-title-text { display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; overflow: hidden; min-width: 0; max-height: 2.5em; margin: 0 6px 0 3px; padding: 0; font: inherit; line-height: 1.25; white-space: normal; overflow-wrap: anywhere; color: var(--text-h); }
+.tasks-planner .task-card-title, .task-list > li > label > span {
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  overflow: hidden;
+  min-width: 0;
+  max-height: 2.5em;
+  line-height: 1.25;
+  white-space: normal;
+  overflow-wrap: anywhere;
+}
+.app.tasks-planner .planner-task-list .task-open { line-height: 1.25; }
+.tasks-planner .task-snippet { line-height: 1.25; }
+@media (max-width: 540px) {
+  .app.tasks-planner .planner-task-list > li { padding: 3px 8px; }
+}
+
+.app .shopping-screen > .purchase-filter-toggle { justify-content: space-between; gap: 12px; min-height: 44px; margin: 0; padding: 8px 12px; border: 1px solid var(--border); border-radius: 14px; background: var(--social-bg); box-shadow: none; font-size: 14px; text-align: left; }
+.purchase-switch-track { display: flex; align-items: center; flex: 0 0 42px; width: 42px; height: 26px; padding: 3px; box-sizing: border-box; border-radius: 20px; background: var(--border); transition: background .15s; }
+.purchase-switch-track > span { width: 20px; height: 20px; border-radius: 50%; background: #fff; box-shadow: 0 1px 3px #49386b25; transition: transform .15s; }
+.purchase-filter-toggle[aria-checked="true"] .purchase-switch-track { background: var(--accent); }
+.purchase-filter-toggle[aria-checked="true"] .purchase-switch-track > span { transform: translateX(16px); }
+.app .shopping-screen > .purchase-list-action { justify-self: center; width: auto; min-height: 44px; margin: 0; padding: 8px 12px; gap: 8px; border: 0; border-radius: 10px; background: transparent; box-shadow: none; font-size: 14px; color: var(--text); }
+.app .shopping-screen > .purchase-list-action.danger { color: var(--danger); }
+.app .shopping-screen > .purchase-list-action:hover:not(:disabled) { background: var(--social-bg); }
+@media (prefers-reduced-motion: reduce) { .purchase-switch-track, .purchase-switch-track > span { transition: none; } }
+
+/* Keep list controls visible while only the list itself scrolls. */
+.functional-shell {
+  --panel-gutters: 64px;
+  --panel-height: calc(min(100dvh, var(--app-height, 100dvh)) - var(--panel-gutters) - max(env(safe-area-inset-top, 0px), var(--tg-safe-area-inset-top, 0px)) - var(--tg-content-safe-area-inset-top, 0px) - max(env(safe-area-inset-bottom, 0px), var(--tg-safe-area-inset-bottom, 0px)) - var(--tg-content-safe-area-inset-bottom, 0px));
+}
+.functional-shell > .family-screen.functional-layout { box-sizing: border-box; min-height: var(--panel-height); align-content: start; }
+.functional-shell > .family-screen.functional-layout:has(.shopping-viewport) { display: flex; flex-direction: column; height: var(--panel-height); min-height: 380px; }
+.functional-layout > .shopping-viewport { display: flex; flex-direction: column; flex: 1; min-height: 0; gap: 12px; }
+.shopping-viewport > :not(.shopping-list-scroll) { flex-shrink: 0; }
+.shopping-list-scroll { flex: 1; min-height: 60px; overflow-y: auto; overscroll-behavior-y: contain; scrollbar-width: thin; scrollbar-color: var(--accent-border) transparent; padding: 2px 4px 2px 0; }
+.shopping-list-scroll .shopping-items { align-content: start; }
+.shopping-list-scroll .empty-state { font-size: 15px; padding: 16px; margin: 0; }
+.shopping-pagination { display: flex; align-items: center; justify-content: center; gap: 16px; }
+.app .shopping-pagination button { width: 44px; height: 44px; min-height: 44px; padding: 8px; margin: 0; background: transparent; border: 1px solid var(--border); color: var(--accent); border-radius: 12px; }
+.shopping-pagination > span { text-align: center; font-size: 14px; font-variant-numeric: tabular-nums; }
+.shopping-pagination small { display: block; font-size: 12px; color: var(--text); }
+@media (max-width: 540px) { .functional-shell { --panel-gutters: 32px; } }
+@media (max-height: 500px) {
+  .functional-shell > .family-screen.functional-layout:has(.shopping-viewport) { height: auto; min-height: var(--panel-height); }
+  .shopping-list-scroll { max-height: 45dvh; flex: auto; }
+}
+
+.shopping-sorted-toast { position: fixed; z-index: 100; left: 50%; bottom: calc(24px + env(safe-area-inset-bottom, 0px)); transform: translateX(-50%); max-width: calc(100vw - 32px); padding: 12px 20px; border: 1px solid #c9dfce; border-radius: 16px; background: #f0f8f1; color: #327346; box-shadow: 0 8px 28px var(--shadow); font-size: 14px; font-weight: 550; text-align: center; pointer-events: none; }
+
+/* Family wishlists reuse the shopping panel, compact rows and switch. */
+.wishlist-heading h1 { font-size: 28px; overflow-wrap: anywhere; }
+.wishlist-heading p { margin-top: 8px; font-size: 14px; }
+.family-screen .wishlist-quick-add { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 8px; margin: 0; }
+.family-screen .wishlist-quick-add input, .family-screen .wishlist-quick-add button { margin: 0; min-width: 0; min-height: 48px; font-size: 15px; border-radius: 16px; }
+.family-screen .wishlist-item-add { grid-template-columns: minmax(0, 1fr) auto auto; }
+.wishlist-profiles { list-style: none; margin: 0; padding: 0; display: grid; gap: 12px; }
+.family-screen .wishlist-profiles > li { display: block; margin: 0; padding: 0; border: 0; background: transparent; box-shadow: none; }
+.app .wishlist-profiles button { display: flex; align-items: center; gap: 12px; width: 100%; margin: 0; padding: 12px; border-radius: 18px; background: var(--bg); border: 1px solid var(--border); text-align: left; color: var(--text-h); }
+.wishlist-initial { display: grid; place-items: center; flex: 0 0 44px; height: 44px; border-radius: 50%; background: var(--accent-bg); color: var(--accent); font-size: 20px; }
+.wishlist-profile-info { flex: 1; min-width: 0; overflow-wrap: anywhere; }
+.wishlist-profile-info strong { font-size: 16px; }
+.wishlist-profile-info small { margin-top: 4px; font-size: 13px; }
+.shopping-items.wishlist-items > li { grid-template-columns: 44px minmax(0, 1fr) 80px; align-items: center; }
+.wishlist-item-content { min-width: 0; padding-block: 8px; }
+.wishlist-item-meta { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin-top: 4px; }
+.wishlist-item-meta a { color: var(--accent); font-size: 13px; text-decoration: underline; text-underline-offset: 3px; }
+.wishlist-item-meta a:focus-visible { outline: 2px solid var(--accent); }
+.wishlist-note { font-size: 13px; line-height: 1.3; margin: 4px 0 0; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; overflow-wrap: anywhere; white-space: pre-wrap; }
+.wishlist-item-actions { display: flex; }
+.app .wishlist-item-actions .icon-button { display: grid; place-items: center; width: 40px; height: 44px; margin: 0; padding: 0; border: 0; background: transparent; color: var(--accent); }
+.app .wishlist-item-actions .icon-delete { color: var(--danger); }
+.wishlist-dialog { width: min(520px, calc(100% - 24px)); }
+.wishlist-dialog-heading { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 16px; }
+.wishlist-dialog-heading h2 { margin: 0; font-size: 20px; }
+.app .wishlist-dialog-heading button { min-width: 44px; margin: 0; padding: 8px; }
+.wishlist-dialog form { display: grid; gap: 8px; margin: 0; }
+.wishlist-dialog form > label { font-size: 14px; margin-top: 8px; }
+.wishlist-dialog label small { display: inline; margin-left: 4px; }
+.wishlist-dialog input, .wishlist-dialog textarea { width: 100%; min-width: 0; margin: 0; font: inherit; font-size: 16px; }
+.wishlist-dialog textarea { resize: vertical; }
+.wishlist-dialog .button-row { margin-top: 16px; }
+.wishlist-price-fields { display: grid; grid-template-columns: minmax(0, 1fr) 120px; gap: 12px; margin-top: 8px; }
+.wishlist-price-fields > label { display: grid; align-content: start; gap: 8px; font-size: 14px; }
+.wishlist-dialog .pastel-select-options { position: relative; top: auto; margin-top: 8px; }
+@media (max-width: 540px) {
+  .family-screen .wishlist-item-add { grid-template-columns: 1fr 1fr; }
+  .wishlist-item-add > input { grid-column: 1 / -1; }
+}
