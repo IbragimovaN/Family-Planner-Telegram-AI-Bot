@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef, useState, type FormEvent } from "react";
 import Tasks from "./Tasks";
+import Wishlists from "./Wishlists";
 import PastelSelect from "./components/PastelSelect";
 import WriteAccess from "./WriteAccess";
 import { apiRequest } from "./api/http";
@@ -163,7 +164,7 @@ export default function FamilyGate({ user, dev, onLogout, logoutBusy, authMessag
   if (loading) return <main className="app"><Loading>Загружаем семью…</Loading></main>;
   const isHome = Boolean(family && !inviteScreen && view === "home");
   const isFamily = Boolean(family && !inviteScreen && view === "family");
-  const isFunctional = Boolean(family && !inviteScreen && (view.startsWith("tasks") || view === "purchases" || view.startsWith("shopping")));
+  const isFunctional = Boolean(family && !inviteScreen && (view.startsWith("tasks") || view === "purchases" || view.startsWith("shopping") || view.startsWith("wishlists")));
   const activeInvitations = invitations.filter(link => !link.revokedAt && link.expiresAt * 1000 > clock);
   const memberWord = new Intl.PluralRules("ru").select(members.length);
   return <div className={isHome ? "home-shell" : isFamily || isFunctional ? "functional-shell" : undefined}>
@@ -249,13 +250,14 @@ export default function FamilyGate({ user, dev, onLogout, logoutBusy, authMessag
               <img src="/home/tasks.png" alt="" width="1254" height="1254" />
               <span className="home-card-caption"><strong>Список дел</strong><span aria-hidden="true">↗</span></span>
             </button>
-            <button disabled aria-label="Вишлисты — скоро">
+            <button onClick={() => setView("wishlists")} aria-label="Вишлисты">
               <img src="/home/wishlists.png" alt="" width="1254" height="1254" />
-              <span className="home-card-caption"><strong>Вишлисты</strong><small>Скоро</small></span>
+              <span className="home-card-caption"><strong>Вишлисты</strong><span aria-hidden="true">↗</span></span>
             </button>
           </nav>
         </>}
         {view.startsWith("tasks") && <Tasks key={`${family.id}:${view}`} userId={user.id} members={members} timezone={family.timezone} fromHome={view === "tasks/new"} onBack={() => setView("home")} />}
+        {view.startsWith("wishlists") && <Wishlists key={`${family.id}:${view}`} route={view} back={back} />}
         {(view.startsWith("shopping") || view === "purchases") && <Shopping key={`${family.id}:${view}`} route={view} timezone={family.timezone} back={back} />}
         {view === "family" && <>
           <div className="family-section-heading"><h2>Участники</h2><span className="family-count">{members.length} {memberWord === "one" ? "участник" : memberWord === "few" ? "участника" : "участников"}</span></div>

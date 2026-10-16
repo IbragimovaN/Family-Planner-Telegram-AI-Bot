@@ -8,6 +8,7 @@ import type { Classifier } from "./shopping-ai.js";
 import { createTasksRouter } from "./tasks.js";
 import type { TaskParser } from "./task-input.js";
 import { createPurchasesRouter } from "./purchases.js";
+import { createWishlistsRouter } from "./wishlists.js";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 
@@ -68,6 +69,7 @@ app.get("/api/me", (_request, response) => {
 app.use("/api", createFamilyRouter(database, config));
 app.use("/api", createShoppingRouter(database, shoppingClassifier));
 app.use("/api", createPurchasesRouter(database));
+app.use("/api", createWishlistsRouter(database));
 app.use("/api", createTasksRouter(database, taskParser, now));
 
 app.get("/api/prototype-tasks", (_request, response) => {

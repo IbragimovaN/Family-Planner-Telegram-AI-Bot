@@ -1,9 +1,9 @@
 import { useCallback, useEffect, useSyncExternalStore } from "react";
 
-export type Route = "home" | "family" | "tasks" | "tasks/new" | "purchases" | "shopping" | "shopping/history" | `shopping/history/${string}`;
+export type Route = "home" | "family" | "tasks" | "tasks/new" | "purchases" | "shopping" | "shopping/history" | `shopping/history/${string}` | "wishlists" | `wishlists/${string}`;
 function snapshot(): Route {
   const path = window.location.hash.slice(2);
-  return /^(family|tasks(?:\/new)?|purchases|shopping|shopping\/history(?:\/[a-zA-Z0-9-]+)?)$/.test(path) ? path as Route : "home";
+  return /^(family|tasks(?:\/new)?|purchases|shopping|shopping\/history(?:\/[a-zA-Z0-9-]+)?|wishlists(?:\/[a-zA-Z0-9-]+)?)$/.test(path) ? path as Route : "home";
 }
 function subscribe(listener: () => void) {
   window.addEventListener("popstate", listener);
@@ -20,7 +20,7 @@ export function navigate(route: Route, replace = false) {
 export function useNavigation() {
   const route = useSyncExternalStore(subscribe, snapshot);
   const back = useCallback(() => {
-    const parent = route.startsWith("shopping/history/") ? "shopping/history" : route === "shopping/history" ? "shopping" : "home";
+    const parent = route.startsWith("wishlists/") ? "wishlists" : route.startsWith("shopping/history/") ? "shopping/history" : route === "shopping/history" ? "shopping" : "home";
     if (window.history.state?.planner && window.history.state.parent === parent) window.history.back();
     else navigate(parent, true);
   }, [route]);

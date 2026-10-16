@@ -100,9 +100,17 @@ try {
       await wait(`document.querySelectorAll('.task-periods button')[${period}].getAttribute('aria-pressed')==='true'`);
       await wait("!document.querySelector('.tasks-planner [role=status]:not(.sr-only)')");
       assert.equal(await evaluate("document.querySelectorAll('.task-quick-add .primary').length"),1);
-      assert.equal(await evaluate("Boolean(document.querySelector('.task-date-navigation'))"),period===0);
+      assert.equal(await evaluate("Boolean(document.querySelector('.task-date-navigation'))"),period!==2);
       assert.ok(await evaluate("document.documentElement.scrollWidth <= window.innerWidth"), 'Page fits '+width);
       await screenshot('tasks-ui-'+width+'-'+period+'.png');
+      if (period === 1) {
+        const firstDay = await evaluate("document.querySelector('.task-week section').dataset.dropDay");
+        const nextWeek = new Date(firstDay + 'T12:00:00Z'); nextWeek.setUTCDate(nextWeek.getUTCDate() + 7);
+        await evaluate("document.querySelector('.task-date-navigation > button:last-child').click()");
+        await wait(`document.querySelector('.task-week section')?.dataset.dropDay===${JSON.stringify(nextWeek.toISOString().slice(0,10))}`);
+        await evaluate("document.querySelector('.task-date-navigation > button:first-child').click()");
+        await wait(`document.querySelector('.task-week section')?.dataset.dropDay===${JSON.stringify(firstDay)}`);
+      }
       if(period>0) {
         await evaluate("document.querySelectorAll('.task-date-modes button')[1].click()");
         await wait("document.querySelectorAll('.task-date-modes button')[1].getAttribute('aria-pressed')==='true'");
